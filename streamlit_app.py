@@ -92,11 +92,11 @@ with st.sidebar:
     st.subheader("Technology (shares)")
     alpha = _num("α (capital share)", min_value=0.0, max_value=0.999, value=float(DEFAULTS["alpha"]), step=0.01,
                  help="Capital share in Cobb–Douglas Y = A·K^α·L_eff^(1-α). Must be in (0,1).")
-    theta = _num("θ (cognitive task weight)", min_value=0.0, max_value=0.999, value=float(DEFAULTS["theta"]), step=0.01,
+    theta = _num("θ (cognitive task weight; will need to guess)", min_value=0.0, max_value=0.999, value=float(DEFAULTS["theta"]), step=0.01,
                  help="Weight on cognitive tasks in the effective labor CES aggregator. Must be in (0,1).")
 
     st.divider()
-    st.subheader("Technology (substitution elasticities)")
+    st.subheader("Technology (substitution elasticities; will need to guess)")
     eps = _num("ε (cog vs phys)", value=float(DEFAULTS["eps"]), step=0.05,
               help="CES substitution parameter between cognitive and physical task aggregates in L_eff. "
                    "For complements, set ε < 1. Avoid exactly 1.")
@@ -106,7 +106,7 @@ with st.sidebar:
                 help="CES substitution parameter within the physical nest. For complements, set σp < 1. Avoid exactly 1.")
 
     st.divider()
-    st.subheader("Machine productivity (services per unit capital)")
+    st.subheader("Machine productivity (services per unit capital; will be pinned down endogenously)")
     phi_c = _num("ϕc (AI services scale)", min_value=1e-9, value=float(DEFAULTS["phi_c"]), step=0.1,
                 help="Maps compute capital to AI services: L_AI = ϕc·Xc_t·K_AI. Must be positive.")
     phi_p = _num("ϕp (robot services scale)", min_value=1e-9, value=float(DEFAULTS["phi_p"]), step=0.1,
@@ -116,11 +116,11 @@ with st.sidebar:
     st.subheader("Household labor")
     Lbar = _num("L̄ (labor budget)", min_value=1e-9, value=float(DEFAULTS["Lbar"]), step=0.1,
                help="Total labor endowment in the CES labor constraint. Must be positive.")
-    tau = _num("τ (labor curvature)", min_value=1.0001, value=float(DEFAULTS["tau"]), step=0.05,
+    tau = _num("τ (labor curvature; maybe data on this, probably guess)", min_value=1.0001, value=float(DEFAULTS["tau"]), step=0.05,
               help="Household constraint: Lc^τ + Lp^τ = L̄^τ with τ>1 to keep both supplies interior.")
 
     st.divider()
-    st.subheader("Automation capability paths")
+    st.subheader("Automation capability paths (might come from scenario)")
     mu_c0 = _num("μc₀ (AI automatable share at t=0)", min_value=0.0, max_value=0.999999,
                 value=float(DEFAULTS["mu_c0"]), step=0.05,
                 help="Initial fraction of cognitive tasks that are automatable by AI (increases over time). Must be in [0,1).")
