@@ -65,7 +65,7 @@ with st.sidebar:
                   help="Starting capital is fixed at 1, as requested.")
 
     st.divider()
-    st.subheader("Exogenous paths")
+    st.subheader("Exogenous paths (exponential for now; take estimates from AIFP)")
     A0  = _num("A₀ (TFP level)", value=float(DEFAULTS["A0"]), step=0.1,
               help="TFP level in period 0. Must be positive.")
     gA  = _num("gA (TFP growth rate)", value=float(DEFAULTS["gA"]), step=0.005,
