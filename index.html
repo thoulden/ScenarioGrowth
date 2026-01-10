@@ -251,6 +251,10 @@
             <h3>Human Task Shares (μ terms)</h3>
             <canvas id="muChart"></canvas>
         </div>
+        <div class="chart-container">
+            <h3>Human Labor Allocation (ℓc)</h3>
+            <canvas id="ellChart"></canvas>
+        </div>
     </div>
 
     <div id="resultsTable" class="results-table hidden">
@@ -641,6 +645,7 @@
 
     let wagesChart = null;
     let muChart = null;
+    let ellChart = null;
 
     function createCharts(results) {
         const years = results.map(r => r.year);
@@ -652,10 +657,12 @@
         const mu_h_p = results.map(r => r.mu_h_p);
         const mu_h_c_min = results.map(r => r.mu_h_c_min);
         const mu_h_p_min = results.map(r => r.mu_h_p_min);
+        const ell_c = results.map(r => r.ell_c);
 
         // Destroy existing charts
         if (wagesChart) wagesChart.destroy();
         if (muChart) muChart.destroy();
+        if (ellChart) ellChart.destroy();
 
         // Wages and Machine Prices chart
         const wagesCtx = document.getElementById('wagesChart').getContext('2d');
@@ -802,6 +809,54 @@
                         title: {
                             display: true,
                             text: 'Task share'
+                        },
+                        min: 0,
+                        max: 1
+                    }
+                }
+            }
+        });
+
+        // Labor allocation chart (ell_c)
+        const ellCtx = document.getElementById('ellChart').getContext('2d');
+        ellChart = new Chart(ellCtx, {
+            type: 'line',
+            data: {
+                labels: years,
+                datasets: [
+                    {
+                        label: 'ℓc (cognitive share of human labor)',
+                        data: ell_c,
+                        borderColor: 'rgb(44, 160, 44)',
+                        backgroundColor: 'rgb(44, 160, 44)',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Human labor allocation over time'
+                    },
+                    legend: {
+                        position: 'top'
+                    }
+                },
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Year'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Share'
                         },
                         min: 0,
                         max: 1
