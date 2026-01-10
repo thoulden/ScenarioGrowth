@@ -212,9 +212,14 @@
                 <small>Substitution human vs robots (physical)</small>
             </div>
             <div class="param-group">
+                <label for="kappa">Kappa (labor ratio scale)</label>
+                <input type="number" id="kappa" value="1.68" step="0.1" min="0.01">
+                <small>Scale factor in L_c/L_p</small>
+            </div>
+            <div class="param-group">
                 <label for="omega">Omega (labor elasticity)</label>
-                <input type="number" id="omega" value="1.00" step="0.1" min="0">
-                <small>H_c/H_p = (w_c/w_p)^omega</small>
+                <input type="number" id="omega" value="0.10" step="0.1" min="0">
+                <small>L_c/L_p = kappa * (w_c/w_p)^omega</small>
             </div>
         </div>
         <button id="runModel" disabled>Run Model</button>
@@ -251,6 +256,7 @@
             eps: parseFloat(document.getElementById('eps').value),
             sig_c: parseFloat(document.getElementById('sig_c').value),
             sig_p: parseFloat(document.getElementById('sig_p').value),
+            kappa: parseFloat(document.getElementById('kappa').value),
             omega: parseFloat(document.getElementById('omega').value)
         };
     }
@@ -300,44 +306,6 @@
         return Math.pow(Q, 1.0 - rho) * Math.pow(1.0 - mu, 1.0 / sigma) * Math.pow(y, rho - 1.0);
     }
 
-    // Prices given mu values
-    function pricesGivenMuHumanShare(Y, K, Hc, AIc, Hp, Rp, mu_h_c, mu_h_p, params) {
-        const { alpha, theta, eps, sig_c, sig_p } = params;
-
-        // Within nests
-        const L_cog = cesTaskAgg(Hc, AIc, mu_h_c, sig_c);
-        const L_phys = cesTaskAgg(Hp, Rp, mu_h_p, sig_p);
-
-        // Effective labor
-        const L_eff = cesTaskAgg(L_cog, L_phys, theta, eps);
-
-        // Implied A (so Y matches data)
-        const A = Y / (Math.pow(K, alpha) * Math.pow(L_eff, 1.0 - alpha));
-
-        // Competitive prices (marginal products)
-        const r = alpha * Y / K;
-        const mp_Leff = (1.0 - alpha) * Y / L_eff;
-
-        // Chain rule
-        const dLeff_dLcog = dQdxFirst(L_eff, L_cog, theta, eps);
-        const dLeff_dLphys = dQdySecond(L_eff, L_phys, theta, eps);
-
-        const dLcog_dHc = dQdxFirst(L_cog, Hc, mu_h_c, sig_c);
-        const dLcog_dAIc = dQdySecond(L_cog, AIc, mu_h_c, sig_c);
-
-        const dLphys_dHp = dQdxFirst(L_phys, Hp, mu_h_p, sig_p);
-        const dLphys_dRp = dQdySecond(L_phys, Rp, mu_h_p, sig_p);
-
-        const wc = mp_Leff * dLeff_dLcog * dLcog_dHc;
-        const qc = mp_Leff * dLeff_dLcog * dLcog_dAIc;
-        const wp = mp_Leff * dLeff_dLphys * dLphys_dHp;
-        const qr = mp_Leff * dLeff_dLphys * dLphys_dRp;
-
-        const profit = Y - (r * K + wc * Hc + qc * AIc + wp * Hp + qr * Rp);
-
-        return { A, r, wc, qc, wp, qr, profit };
-    }
-
     // Bisection root finder
     function bisectRoot(func, lo, hi, maxIter = 80, tol = 1e-12) {
         let flo = func(lo);
@@ -372,119 +340,146 @@
         return 0.5 * (a + b);
     }
 
-    // Compute labor allocation given wages and omega
-    // H_c/H_p = (w_c/w_p)^omega, with H_c + H_p = H_total
-    function allocateLabor(H_total, wc, wp, omega) {
-        if (omega === 0) {
-            // Equal split when omega = 0
-            return { Hc: H_total / 2, Hp: H_total / 2 };
-        }
-
-        // Ratio of cognitive to physical labor
-        const wageRatio = Math.max(TINY, wc) / Math.max(TINY, wp);
-        const laborRatio = Math.pow(wageRatio, omega);
-
-        // H_c = laborRatio * H_p and H_c + H_p = H_total
-        // => H_p * (1 + laborRatio) = H_total
-        const Hp = H_total / (1 + laborRatio);
-        const Hc = laborRatio * Hp;
-
-        return { Hc: Math.max(Hc, TINY), Hp: Math.max(Hp, TINY) };
+    // Human split given wage ratio z = wc/wp
+    // L_c/L_p = kappa * z^omega => ell_c = kappa*z^omega / (kappa*z^omega + 1)
+    function humanSplit(L, z, kappa, omega) {
+        z = Math.max(z, TINY);
+        const x = kappa * Math.pow(z, omega);
+        const ell = x / (x + 1.0);
+        const Hc = ell * L;
+        const Hp = (1.0 - ell) * L;
+        return { Hc: Math.max(Hc, TINY), Hp: Math.max(Hp, TINY), ell_c: ell };
     }
 
-    // Solve endogenous mu and labor allocation for one year
-    function solveMuOneYear(row, params, outer = 40) {
-        const { Y, K, H_cog, AI_cog, R_phys, bar_auto_c, bar_auto_p } = row;
-        const { omega } = params;
+    // Prices given mu and wage ratio z (which determines Hc, Hp via human split)
+    function pricesGivenMuAndZ(Y, K, L, AIc, Rp, mu_h_c, mu_h_p, z, params) {
+        const { alpha, theta, eps, sig_c, sig_p, kappa, omega } = params;
 
-        // Total human labor (H_cog and H_phys are the same in the data)
-        const H_total = H_cog;
+        // Compute human split from wage ratio
+        const split = humanSplit(L, z, kappa, omega);
+        const Hc = split.Hc;
+        const Hp = split.Hp;
+
+        // Nests
+        const L_cog = cesTaskAgg(Hc, AIc, mu_h_c, sig_c);
+        const L_phys = cesTaskAgg(Hp, Rp, mu_h_p, sig_p);
+        const L_eff = cesTaskAgg(L_cog, L_phys, theta, eps);
+
+        // Infer A from Y = A K^alpha L_eff^(1-alpha)
+        const A = Y / (Math.pow(K, alpha) * Math.pow(L_eff, 1.0 - alpha));
+        const r = alpha * Y / K;
+        const mp_Leff = (1.0 - alpha) * Y / L_eff;
+
+        // Chain rule derivatives
+        const dLeff_dLcog = dQdxFirst(L_eff, L_cog, theta, eps);
+        const dLeff_dLphys = dQdySecond(L_eff, L_phys, theta, eps);
+
+        const dLcog_dHc = dQdxFirst(L_cog, Hc, mu_h_c, sig_c);
+        const dLcog_dAIc = dQdySecond(L_cog, AIc, mu_h_c, sig_c);
+
+        const dLphys_dHp = dQdxFirst(L_phys, Hp, mu_h_p, sig_p);
+        const dLphys_dRp = dQdySecond(L_phys, Rp, mu_h_p, sig_p);
+
+        const wc = mp_Leff * dLeff_dLcog * dLcog_dHc;
+        const qc = mp_Leff * dLeff_dLcog * dLcog_dAIc;
+        const wp = mp_Leff * dLeff_dLphys * dLphys_dHp;
+        const qr = mp_Leff * dLeff_dLphys * dLphys_dRp;
+
+        const profit = Y - (r * K + wc * Hc + wp * Hp + qc * AIc + qr * Rp);
+
+        return { A, r, wc, wp, qc, qr, Hc, Hp, ell_c: split.ell_c, profit };
+    }
+
+    // Inner solver: fixed-point iteration for z = wc/wp
+    function solveZForMu(Y, K, L, AIc, Rp, mu_h_c, mu_h_p, params, z0 = 1.0, damp = 0.6, maxIter = 200, tol = 1e-10) {
+        let logz = Math.log(z0);
+
+        for (let i = 0; i < maxIter; i++) {
+            const z = Math.exp(logz);
+            const out = pricesGivenMuAndZ(Y, K, L, AIc, Rp, mu_h_c, mu_h_p, z, params);
+            const z_hat = out.wc / out.wp;
+            const logz_hat = Math.log(z_hat);
+
+            if (Math.abs(logz_hat - logz) < tol) {
+                out.z = Math.exp(logz_hat);
+                return out;
+            }
+
+            logz = (1.0 - damp) * logz + damp * logz_hat;
+        }
+
+        // Return last result even if not fully converged
+        const z = Math.exp(logz);
+        const out = pricesGivenMuAndZ(Y, K, L, AIc, Rp, mu_h_c, mu_h_p, z, params);
+        out.z = z;
+        out.z_converged = false;
+        return out;
+    }
+
+    // Main solver for one year
+    function solveMuOneYear(row, params) {
+        const { Y, K, H_cog, AI_cog, R_phys, bar_auto_c, bar_auto_p } = row;
+
+        const L = H_cog;  // Total human labor
         const AIc = AI_cog;
         const Rp = R_phys;
 
-        // Min human share is 1 - bar_auto
-        const mu_h_c_min = Math.max(TINY, Math.min(1 - TINY, 1.0 - Math.max(0, Math.min(bar_auto_c, 1.0 - TINY))));
-        const mu_h_p_min = Math.max(TINY, Math.min(1 - TINY, 1.0 - Math.max(0, Math.min(bar_auto_p, 1.0 - TINY))));
-
-        // Start with equal split of labor
-        let Hc = H_total / 2;
-        let Hp = H_total / 2;
+        // bar_auto is max automatable share => min human share = 1 - bar_auto
+        const mu_h_c_min = Math.max(1e-9, Math.min(1.0 - 1e-9, 1.0 - Math.max(0, Math.min(bar_auto_c, 1.0 - 1e-12))));
+        const mu_h_p_min = Math.max(1e-9, Math.min(1.0 - 1e-9, 1.0 - Math.max(0, Math.min(bar_auto_p, 1.0 - 1e-12))));
 
         // Start at frontier (automate as much as possible)
-        let mu_c_cur = mu_h_c_min;
-        let mu_p_cur = mu_h_p_min;
+        let mu_h_c = mu_h_c_min;
+        let mu_h_p = mu_h_p_min;
 
-        // Outer loop: iterate on labor allocation and mu values
-        for (let iter = 0; iter < outer; iter++) {
-            const prev_Hc = Hc;
-            const prev_Hp = Hp;
-            const prev_mu_c = mu_c_cur;
-            const prev_mu_p = mu_p_cur;
+        // Solve for z at frontier
+        let out = solveZForMu(Y, K, L, AIc, Rp, mu_h_c, mu_h_p, params, 1.0);
 
-            // Get prices with current labor allocation and mu
-            const base = pricesGivenMuHumanShare(Y, K, Hc, AIc, Hp, Rp, mu_c_cur, mu_p_cur, params);
+        const need_c = out.wc < out.qc;
+        const need_p = out.wp < out.qr;
 
-            // Update labor allocation based on wages and omega
-            const newAlloc = allocateLabor(H_total, base.wc, base.wp, omega);
-            Hc = newAlloc.Hc;
-            Hp = newAlloc.Hp;
+        // Coordinate bisection on mu's (each evaluation solves the inner z fixed-point)
+        let mu_c_cur = mu_h_c;
+        let mu_p_cur = mu_h_p;
 
-            // Check if we need endogenous mu (when human wage < machine price)
-            const need_c = base.wc < base.qc;
-            const need_p = base.wp < base.qr;
+        for (let iter = 0; iter < 30; iter++) {
+            const prev_c = mu_c_cur;
+            const prev_p = mu_p_cur;
 
-            // Inner loop: solve for mu values given labor allocation
-            for (let inner = 0; inner < 20; inner++) {
-                const inner_prev_c = mu_c_cur;
-                const inner_prev_p = mu_p_cur;
-
-                if (need_c) {
-                    const f = (mu) => {
-                        const out = pricesGivenMuHumanShare(Y, K, Hc, AIc, Hp, Rp, mu, mu_p_cur, params);
-                        return Math.log(out.wc / out.qc);
-                    };
-                    mu_c_cur = bisectRoot(f, mu_h_c_min, 1.0 - TINY);
-                } else {
-                    mu_c_cur = mu_h_c_min;
-                }
-
-                if (need_p) {
-                    const g = (mu) => {
-                        const out = pricesGivenMuHumanShare(Y, K, Hc, AIc, Hp, Rp, mu_c_cur, mu, params);
-                        return Math.log(out.wp / out.qr);
-                    };
-                    mu_p_cur = bisectRoot(g, mu_h_p_min, 1.0 - TINY);
-                } else {
-                    mu_p_cur = mu_h_p_min;
-                }
-
-                if (Math.max(Math.abs(mu_c_cur - inner_prev_c), Math.abs(mu_p_cur - inner_prev_p)) < 1e-12) {
-                    break;
-                }
+            if (need_c) {
+                const f = (mu) => {
+                    const o = solveZForMu(Y, K, L, AIc, Rp, mu, mu_p_cur, params, 1.0);
+                    return Math.log(o.wc / o.qc);
+                };
+                mu_c_cur = bisectRoot(f, mu_h_c_min, 1.0 - 1e-9);
             }
 
-            // Check overall convergence
-            const laborChange = Math.max(Math.abs(Hc - prev_Hc), Math.abs(Hp - prev_Hp)) / H_total;
-            const muChange = Math.max(Math.abs(mu_c_cur - prev_mu_c), Math.abs(mu_p_cur - prev_mu_p));
+            if (need_p) {
+                const g = (mu) => {
+                    const o = solveZForMu(Y, K, L, AIc, Rp, mu_c_cur, mu, params, 1.0);
+                    return Math.log(o.wp / o.qr);
+                };
+                mu_p_cur = bisectRoot(g, mu_h_p_min, 1.0 - 1e-9);
+            }
 
-            if (laborChange < 1e-10 && muChange < 1e-10) {
+            if (Math.max(Math.abs(mu_c_cur - prev_c), Math.abs(mu_p_cur - prev_p)) < 1e-10) {
                 break;
             }
         }
 
-        const out = pricesGivenMuHumanShare(Y, K, Hc, AIc, Hp, Rp, mu_c_cur, mu_p_cur, params);
-        const base_frontier = pricesGivenMuHumanShare(Y, K, Hc, AIc, Hp, Rp, mu_h_c_min, mu_h_p_min, params);
+        // Final solve with converged mu values
+        const final = solveZForMu(Y, K, L, AIc, Rp, mu_c_cur, mu_p_cur, params, 1.0);
 
         return {
-            ...out,
+            ...final,
             mu_h_c: mu_c_cur,
             mu_h_p: mu_p_cur,
             mu_h_c_min: mu_h_c_min,
             mu_h_p_min: mu_h_p_min,
-            H_cog_allocated: Hc,
-            H_phys_allocated: Hp,
-            regime_c: base_frontier.wc < base_frontier.qc ? "endogenous" : "frontier",
-            regime_p: base_frontier.wp < base_frontier.qr ? "endogenous" : "frontier"
+            H_cog_allocated: final.Hc,
+            H_phys_allocated: final.Hp,
+            regime_c: need_c ? "endogenous" : "frontier",
+            regime_p: need_p ? "endogenous" : "frontier"
         };
     }
 
