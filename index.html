@@ -212,9 +212,9 @@
                 <small>Substitution human vs robots (physical)</small>
             </div>
             <div class="param-group">
-                <label for="omega">Omega</label>
-                <input type="number" id="omega" value="1.00" step="0.01" min="0">
-                <small>Model weight parameter</small>
+                <label for="omega">Omega (labor elasticity)</label>
+                <input type="number" id="omega" value="1.00" step="0.1" min="0">
+                <small>H_c/H_p = (w_c/w_p)^omega</small>
             </div>
         </div>
         <button id="runModel" disabled>Run Model</button>
@@ -372,54 +372,108 @@
         return 0.5 * (a + b);
     }
 
-    // Solve endogenous mu for one year
-    function solveMuOneYear(row, params, outer = 40) {
-        const { Y, K, H_cog, AI_cog, H_phys, R_phys, bar_auto_c, bar_auto_p } = row;
+    // Compute labor allocation given wages and omega
+    // H_c/H_p = (w_c/w_p)^omega, with H_c + H_p = H_total
+    function allocateLabor(H_total, wc, wp, omega) {
+        if (omega === 0) {
+            // Equal split when omega = 0
+            return { Hc: H_total / 2, Hp: H_total / 2 };
+        }
 
-        const Hc = H_cog, AIc = AI_cog, Hp = H_phys, Rp = R_phys;
+        // Ratio of cognitive to physical labor
+        const wageRatio = Math.max(TINY, wc) / Math.max(TINY, wp);
+        const laborRatio = Math.pow(wageRatio, omega);
+
+        // H_c = laborRatio * H_p and H_c + H_p = H_total
+        // => H_p * (1 + laborRatio) = H_total
+        const Hp = H_total / (1 + laborRatio);
+        const Hc = laborRatio * Hp;
+
+        return { Hc: Math.max(Hc, TINY), Hp: Math.max(Hp, TINY) };
+    }
+
+    // Solve endogenous mu and labor allocation for one year
+    function solveMuOneYear(row, params, outer = 40) {
+        const { Y, K, H_cog, AI_cog, R_phys, bar_auto_c, bar_auto_p } = row;
+        const { omega } = params;
+
+        // Total human labor (H_cog and H_phys are the same in the data)
+        const H_total = H_cog;
+        const AIc = AI_cog;
+        const Rp = R_phys;
 
         // Min human share is 1 - bar_auto
-        const mu_h_c_min = Math.max(0, Math.min(1, 1.0 - Math.max(0, Math.min(bar_auto_c, 1.0 - TINY))));
-        const mu_h_p_min = Math.max(0, Math.min(1, 1.0 - Math.max(0, Math.min(bar_auto_p, 1.0 - TINY))));
+        const mu_h_c_min = Math.max(TINY, Math.min(1 - TINY, 1.0 - Math.max(0, Math.min(bar_auto_c, 1.0 - TINY))));
+        const mu_h_p_min = Math.max(TINY, Math.min(1 - TINY, 1.0 - Math.max(0, Math.min(bar_auto_p, 1.0 - TINY))));
 
-        // Frontier: automate as much as possible
-        let mu_h_c = mu_h_c_min;
-        let mu_h_p = mu_h_p_min;
+        // Start with equal split of labor
+        let Hc = H_total / 2;
+        let Hp = H_total / 2;
 
-        const base = pricesGivenMuHumanShare(Y, K, Hc, AIc, Hp, Rp, mu_h_c, mu_h_p, params);
+        // Start at frontier (automate as much as possible)
+        let mu_c_cur = mu_h_c_min;
+        let mu_p_cur = mu_h_p_min;
 
-        const need_c = base.wc < base.qc;
-        const need_p = base.wp < base.qr;
+        // Outer loop: iterate on labor allocation and mu values
+        for (let iter = 0; iter < outer; iter++) {
+            const prev_Hc = Hc;
+            const prev_Hp = Hp;
+            const prev_mu_c = mu_c_cur;
+            const prev_mu_p = mu_p_cur;
 
-        let mu_c_cur = mu_h_c;
-        let mu_p_cur = mu_h_p;
+            // Get prices with current labor allocation and mu
+            const base = pricesGivenMuHumanShare(Y, K, Hc, AIc, Hp, Rp, mu_c_cur, mu_p_cur, params);
 
-        for (let i = 0; i < outer; i++) {
-            const prev_c = mu_c_cur;
-            const prev_p = mu_p_cur;
+            // Update labor allocation based on wages and omega
+            const newAlloc = allocateLabor(H_total, base.wc, base.wp, omega);
+            Hc = newAlloc.Hc;
+            Hp = newAlloc.Hp;
 
-            if (need_c) {
-                const f = (mu) => {
-                    const out = pricesGivenMuHumanShare(Y, K, Hc, AIc, Hp, Rp, mu, mu_p_cur, params);
-                    return Math.log(out.wc / out.qc);
-                };
-                mu_c_cur = bisectRoot(f, mu_h_c_min, 1.0 - TINY);
+            // Check if we need endogenous mu (when human wage < machine price)
+            const need_c = base.wc < base.qc;
+            const need_p = base.wp < base.qr;
+
+            // Inner loop: solve for mu values given labor allocation
+            for (let inner = 0; inner < 20; inner++) {
+                const inner_prev_c = mu_c_cur;
+                const inner_prev_p = mu_p_cur;
+
+                if (need_c) {
+                    const f = (mu) => {
+                        const out = pricesGivenMuHumanShare(Y, K, Hc, AIc, Hp, Rp, mu, mu_p_cur, params);
+                        return Math.log(out.wc / out.qc);
+                    };
+                    mu_c_cur = bisectRoot(f, mu_h_c_min, 1.0 - TINY);
+                } else {
+                    mu_c_cur = mu_h_c_min;
+                }
+
+                if (need_p) {
+                    const g = (mu) => {
+                        const out = pricesGivenMuHumanShare(Y, K, Hc, AIc, Hp, Rp, mu_c_cur, mu, params);
+                        return Math.log(out.wp / out.qr);
+                    };
+                    mu_p_cur = bisectRoot(g, mu_h_p_min, 1.0 - TINY);
+                } else {
+                    mu_p_cur = mu_h_p_min;
+                }
+
+                if (Math.max(Math.abs(mu_c_cur - inner_prev_c), Math.abs(mu_p_cur - inner_prev_p)) < 1e-12) {
+                    break;
+                }
             }
 
-            if (need_p) {
-                const g = (mu) => {
-                    const out = pricesGivenMuHumanShare(Y, K, Hc, AIc, Hp, Rp, mu_c_cur, mu, params);
-                    return Math.log(out.wp / out.qr);
-                };
-                mu_p_cur = bisectRoot(g, mu_h_p_min, 1.0 - TINY);
-            }
+            // Check overall convergence
+            const laborChange = Math.max(Math.abs(Hc - prev_Hc), Math.abs(Hp - prev_Hp)) / H_total;
+            const muChange = Math.max(Math.abs(mu_c_cur - prev_mu_c), Math.abs(mu_p_cur - prev_mu_p));
 
-            if (Math.max(Math.abs(mu_c_cur - prev_c), Math.abs(mu_p_cur - prev_p)) < 1e-12) {
+            if (laborChange < 1e-10 && muChange < 1e-10) {
                 break;
             }
         }
 
         const out = pricesGivenMuHumanShare(Y, K, Hc, AIc, Hp, Rp, mu_c_cur, mu_p_cur, params);
+        const base_frontier = pricesGivenMuHumanShare(Y, K, Hc, AIc, Hp, Rp, mu_h_c_min, mu_h_p_min, params);
 
         return {
             ...out,
@@ -427,8 +481,10 @@
             mu_h_p: mu_p_cur,
             mu_h_c_min: mu_h_c_min,
             mu_h_p_min: mu_h_p_min,
-            regime_c: need_c ? "endogenous" : "frontier",
-            regime_p: need_p ? "endogenous" : "frontier"
+            H_cog_allocated: Hc,
+            H_phys_allocated: Hp,
+            regime_c: base_frontier.wc < base_frontier.qc ? "endogenous" : "frontier",
+            regime_p: base_frontier.wp < base_frontier.qr ? "endogenous" : "frontier"
         };
     }
 
@@ -747,12 +803,14 @@
         const container = document.getElementById('tableContainer');
 
         let html = '<table><thead><tr>';
-        html += '<th>Year</th><th>mu_h_c</th><th>mu_h_p</th><th>w_c</th><th>q_c</th><th>w_p</th><th>q_p</th><th>Regime C</th><th>Regime P</th>';
+        html += '<th>Year</th><th>H_c</th><th>H_p</th><th>mu_h_c</th><th>mu_h_p</th><th>w_c</th><th>q_c</th><th>w_p</th><th>q_p</th><th>Regime C</th><th>Regime P</th>';
         html += '</tr></thead><tbody>';
 
         for (const r of results) {
             html += '<tr>';
             html += `<td>${r.year}</td>`;
+            html += `<td>${r.H_cog_allocated.toExponential(2)}</td>`;
+            html += `<td>${r.H_phys_allocated.toExponential(2)}</td>`;
             html += `<td>${r.mu_h_c.toFixed(4)}</td>`;
             html += `<td>${r.mu_h_p.toFixed(4)}</td>`;
             html += `<td>${r.wc.toExponential(2)}</td>`;
