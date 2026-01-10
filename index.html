@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scenario Growth Model</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .upload-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .upload-section h2 {
+            margin-top: 0;
+            color: #555;
+        }
+        .file-input-wrapper {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        input[type="file"] {
+            padding: 10px;
+            border: 2px dashed #ccc;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        input[type="file"]:hover {
+            border-color: #007bff;
+        }
+        .params-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .params-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        .param-group {
+            display: flex;
+            flex-direction: column;
+        }
+        .param-group label {
+            font-weight: 500;
+            margin-bottom: 5px;
+            color: #555;
+        }
+        .param-group input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .param-group small {
+            color: #888;
+            margin-top: 3px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 15px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .charts-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 900px) {
+            .charts-section {
+                grid-template-columns: 1fr;
+            }
+        }
+        .chart-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-container h3 {
+            margin-top: 0;
+            color: #555;
+            text-align: center;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        .status.error {
+            background: #fee;
+            color: #c00;
+        }
+        .status.success {
+            background: #efe;
+            color: #060;
+        }
+        .status.info {
+            background: #eef;
+            color: #006;
+        }
+        .hidden {
+            display: none;
+        }
+        .results-table {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-top: 20px;
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+        th, td {
+            padding: 8px;
+            text-align: right;
+            border-bottom: 1px solid #eee;
+        }
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+        }
+        td:first-child, th:first-child {
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+    <h1>Scenario Growth Model</h1>
+
+    <div class="upload-section">
+        <h2>Upload Spreadsheet</h2>
+        <p>Upload a CSV file with economic scenario data. The file should contain rows for: US Human Labor Force, US AI cognitive, US RObotic physical, US Economy, US 'Normal' Capital, and automation percentages.</p>
+        <div class="file-input-wrapper">
+            <input type="file" id="fileInput" accept=".csv,.xlsx,.xls">
+        </div>
+        <div id="status" class="status hidden"></div>
+    </div>
+
+    <div class="params-section">
+        <h2>Model Parameters</h2>
+        <div class="params-grid">
+            <div class="param-group">
+                <label for="alpha">Alpha (capital share)</label>
+                <input type="number" id="alpha" value="0.30" step="0.01" min="0" max="1">
+                <small>Cobb-Douglas capital share</small>
+            </div>
+            <div class="param-group">
+                <label for="theta">Theta (cognitive weight)</label>
+                <input type="number" id="theta" value="0.60" step="0.01" min="0" max="1">
+                <small>Weight on cognitive in L_eff CES</small>
+            </div>
+            <div class="param-group">
+                <label for="eps">Epsilon (cog vs phys)</label>
+                <input type="number" id="eps" value="0.40" step="0.01" min="0.01">
+                <small>Substitution between cognitive and physical</small>
+            </div>
+            <div class="param-group">
+                <label for="sig_c">Sigma_c (human vs AI)</label>
+                <input type="number" id="sig_c" value="0.50" step="0.01" min="0.01">
+                <small>Substitution human vs AI (cognitive)</small>
+            </div>
+            <div class="param-group">
+                <label for="sig_p">Sigma_p (human vs robot)</label>
+                <input type="number" id="sig_p" value="0.50" step="0.01" min="0.01">
+                <small>Substitution human vs robots (physical)</small>
+            </div>
+        </div>
+        <button id="runModel" disabled>Run Model</button>
+    </div>
+
+    <div class="charts-section">
+        <div class="chart-container">
+            <h3>Wages and Machine Prices over Time</h3>
+            <canvas id="wagesChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>Human Task Shares (mu terms)</h3>
+            <canvas id="muChart"></canvas>
+        </div>
+    </div>
+
+    <div id="resultsTable" class="results-table hidden">
+        <h3>Detailed Results</h3>
+        <div id="tableContainer"></div>
+    </div>
+
+    <script>
+    // ========================================
+    // Economic Model (ported from Python)
+    // ========================================
+
+    const TINY = 1e-12;
+
+    // Get parameters from inputs
+    function getParams() {
+        return {
+            alpha: parseFloat(document.getElementById('alpha').value),
+            theta: parseFloat(document.getElementById('theta').value),
+            eps: parseFloat(document.getElementById('eps').value),
+            sig_c: parseFloat(document.getElementById('sig_c').value),
+            sig_p: parseFloat(document.getElementById('sig_p').value)
+        };
+    }
+
+    // CES task aggregator
+    function cesTaskAgg(x, y, mu, sigma) {
+        x = Math.max(x, TINY);
+        y = Math.max(y, TINY);
+        mu = Math.max(TINY, Math.min(mu, 1.0 - TINY));
+
+        if (Math.abs(sigma - 1.0) < 1e-10) {
+            // Cobb-Douglas limit
+            return Math.pow(x, mu) * Math.pow(y, 1.0 - mu);
+        }
+
+        const rho = (sigma - 1.0) / sigma;
+        const term1 = Math.pow(mu, 1.0 / sigma) * Math.pow(x, rho);
+        const term2 = Math.pow(1.0 - mu, 1.0 / sigma) * Math.pow(y, rho);
+        return Math.pow(term1 + term2, 1.0 / rho);
+    }
+
+    // Derivative wrt first input (weight mu)
+    function dQdxFirst(Q, x, mu, sigma) {
+        x = Math.max(x, TINY);
+        Q = Math.max(Q, TINY);
+        mu = Math.max(TINY, Math.min(mu, 1.0 - TINY));
+
+        if (Math.abs(sigma - 1.0) < 1e-10) {
+            return mu * Q / x;
+        }
+
+        const rho = (sigma - 1.0) / sigma;
+        return Math.pow(Q, 1.0 - rho) * Math.pow(mu, 1.0 / sigma) * Math.pow(x, rho - 1.0);
+    }
+
+    // Derivative wrt second input (weight 1-mu)
+    function dQdySecond(Q, y, mu, sigma) {
+        y = Math.max(y, TINY);
+        Q = Math.max(Q, TINY);
+        mu = Math.max(TINY, Math.min(mu, 1.0 - TINY));
+
+        if (Math.abs(sigma - 1.0) < 1e-10) {
+            return (1.0 - mu) * Q / y;
+        }
+
+        const rho = (sigma - 1.0) / sigma;
+        return Math.pow(Q, 1.0 - rho) * Math.pow(1.0 - mu, 1.0 / sigma) * Math.pow(y, rho - 1.0);
+    }
+
+    // Prices given mu values
+    function pricesGivenMuHumanShare(Y, K, Hc, AIc, Hp, Rp, mu_h_c, mu_h_p, params) {
+        const { alpha, theta, eps, sig_c, sig_p } = params;
+
+        // Within nests
+        const L_cog = cesTaskAgg(Hc, AIc, mu_h_c, sig_c);
+        const L_phys = cesTaskAgg(Hp, Rp, mu_h_p, sig_p);
+
+        // Effective labor
+        const L_eff = cesTaskAgg(L_cog, L_phys, theta, eps);
+
+        // Implied A (so Y matches data)
+        const A = Y / (Math.pow(K, alpha) * Math.pow(L_eff, 1.0 - alpha));
+
+        // Competitive prices (marginal products)
+        const r = alpha * Y / K;
+        const mp_Leff = (1.0 - alpha) * Y / L_eff;
+
+        // Chain rule
+        const dLeff_dLcog = dQdxFirst(L_eff, L_cog, theta, eps);
+        const dLeff_dLphys = dQdySecond(L_eff, L_phys, theta, eps);
+
+        const dLcog_dHc = dQdxFirst(L_cog, Hc, mu_h_c, sig_c);
+        const dLcog_dAIc = dQdySecond(L_cog, AIc, mu_h_c, sig_c);
+
+        const dLphys_dHp = dQdxFirst(L_phys, Hp, mu_h_p, sig_p);
+        const dLphys_dRp = dQdySecond(L_phys, Rp, mu_h_p, sig_p);
+
+        const wc = mp_Leff * dLeff_dLcog * dLcog_dHc;
+        const qc = mp_Leff * dLeff_dLcog * dLcog_dAIc;
+        const wp = mp_Leff * dLeff_dLphys * dLphys_dHp;
+        const qr = mp_Leff * dLeff_dLphys * dLphys_dRp;
+
+        const profit = Y - (r * K + wc * Hc + qc * AIc + wp * Hp + qr * Rp);
+
+        return { A, r, wc, qc, wp, qr, profit };
+    }
+
+    // Bisection root finder
+    function bisectRoot(func, lo, hi, maxIter = 80, tol = 1e-12) {
+        let flo = func(lo);
+        let fhi = func(hi);
+
+        if (Math.abs(flo) < tol) return lo;
+        if (Math.abs(fhi) < tol) return hi;
+
+        if (flo * fhi > 0) {
+            return Math.abs(flo) < Math.abs(fhi) ? lo : hi;
+        }
+
+        let a = lo, b = hi, fa = flo, fb = fhi;
+
+        for (let i = 0; i < maxIter; i++) {
+            const m = 0.5 * (a + b);
+            const fm = func(m);
+
+            if (Math.abs(fm) < tol || (b - a) < 1e-14) {
+                return m;
+            }
+
+            if (fa * fm <= 0) {
+                b = m;
+                fb = fm;
+            } else {
+                a = m;
+                fa = fm;
+            }
+        }
+
+        return 0.5 * (a + b);
+    }
+
+    // Solve endogenous mu for one year
+    function solveMuOneYear(row, params, outer = 40) {
+        const { Y, K, H_cog, AI_cog, H_phys, R_phys, bar_auto_c, bar_auto_p } = row;
+
+        const Hc = H_cog, AIc = AI_cog, Hp = H_phys, Rp = R_phys;
+
+        // Min human share is 1 - bar_auto
+        const mu_h_c_min = Math.max(0, Math.min(1, 1.0 - Math.max(0, Math.min(bar_auto_c, 1.0 - TINY))));
+        const mu_h_p_min = Math.max(0, Math.min(1, 1.0 - Math.max(0, Math.min(bar_auto_p, 1.0 - TINY))));
+
+        // Frontier: automate as much as possible
+        let mu_h_c = mu_h_c_min;
+        let mu_h_p = mu_h_p_min;
+
+        const base = pricesGivenMuHumanShare(Y, K, Hc, AIc, Hp, Rp, mu_h_c, mu_h_p, params);
+
+        const need_c = base.wc < base.qc;
+        const need_p = base.wp < base.qr;
+
+        let mu_c_cur = mu_h_c;
+        let mu_p_cur = mu_h_p;
+
+        for (let i = 0; i < outer; i++) {
+            const prev_c = mu_c_cur;
+            const prev_p = mu_p_cur;
+
+            if (need_c) {
+                const f = (mu) => {
+                    const out = pricesGivenMuHumanShare(Y, K, Hc, AIc, Hp, Rp, mu, mu_p_cur, params);
+                    return Math.log(out.wc / out.qc);
+                };
+                mu_c_cur = bisectRoot(f, mu_h_c_min, 1.0 - TINY);
+            }
+
+            if (need_p) {
+                const g = (mu) => {
+                    const out = pricesGivenMuHumanShare(Y, K, Hc, AIc, Hp, Rp, mu_c_cur, mu, params);
+                    return Math.log(out.wp / out.qr);
+                };
+                mu_p_cur = bisectRoot(g, mu_h_p_min, 1.0 - TINY);
+            }
+
+            if (Math.max(Math.abs(mu_c_cur - prev_c), Math.abs(mu_p_cur - prev_p)) < 1e-12) {
+                break;
+            }
+        }
+
+        const out = pricesGivenMuHumanShare(Y, K, Hc, AIc, Hp, Rp, mu_c_cur, mu_p_cur, params);
+
+        return {
+            ...out,
+            mu_h_c: mu_c_cur,
+            mu_h_p: mu_p_cur,
+            mu_h_c_min: mu_h_c_min,
+            mu_h_p_min: mu_h_p_min,
+            regime_c: need_c ? "endogenous" : "frontier",
+            regime_p: need_p ? "endogenous" : "frontier"
+        };
+    }
+
+    // ========================================
+    // CSV Parsing
+    // ========================================
+
+    function parseCell(x) {
+        if (x === null || x === undefined || x === '') return NaN;
+
+        const s = String(x).trim();
+        if (s === '' || s.toLowerCase() === 'nan') return NaN;
+
+        // Percentage
+        if (s.endsWith('%')) {
+            return parseFloat(s.slice(0, -1)) / 100.0;
+        }
+
+        // Remove $ and commas
+        let s2 = s.replace(/\$/g, '').replace(/,/g, '').trim();
+
+        // Match number with optional suffix
+        const match = s2.match(/^([-+]?\d*\.?\d+)([KMBT])?$/i);
+        if (match) {
+            let num = parseFloat(match[1]);
+            const suf = match[2];
+            if (suf) {
+                const mult = { 'K': 1e3, 'M': 1e6, 'B': 1e9, 'T': 1e12 };
+                num *= mult[suf.toUpperCase()];
+            }
+            return num;
+        }
+
+        return parseFloat(s2);
+    }
+
+    function parseCSV(csvText) {
+        const result = Papa.parse(csvText, {
+            header: false,
+            skipEmptyLines: false
+        });
+
+        const rows = result.data;
+        if (rows.length === 0) {
+            throw new Error("Empty CSV file");
+        }
+
+        // First row should be headers with years
+        const headerRow = rows[0];
+        const yearCols = [];
+        const years = [];
+
+        for (let i = 0; i < headerRow.length; i++) {
+            const val = String(headerRow[i]).trim();
+            if (/^\d{4}$/.test(val)) {
+                yearCols.push(i);
+                years.push(parseInt(val));
+            }
+        }
+
+        if (years.length === 0) {
+            throw new Error("No year columns found in the header row");
+        }
+
+        // Build label to series map
+        const labelToSeries = {};
+        for (let r = 1; r < rows.length; r++) {
+            const row = rows[r];
+            if (!row || !row[0]) continue;
+
+            const label = String(row[0]).trim();
+            if (!label) continue;
+
+            const series = yearCols.map(i => parseCell(row[i]));
+            labelToSeries[label] = series;
+        }
+
+        // Extract required series
+        const requiredLabels = [
+            "US Human Labor Force",
+            "US AI cognitive",
+            "US RObotic physical",
+            "US Economy",
+            "US 'Normal' Capital",
+            "% of cognitive jobs that can be automated",
+            "% of physical jobs that can be automated"
+        ];
+
+        for (const label of requiredLabels) {
+            if (!labelToSeries[label]) {
+                throw new Error(`Missing required row: "${label}"`);
+            }
+        }
+
+        // Build data array
+        const data = [];
+        for (let i = 0; i < years.length; i++) {
+            data.push({
+                year: years[i],
+                Y: labelToSeries["US Economy"][i],
+                K: labelToSeries["US 'Normal' Capital"][i],
+                H_cog: labelToSeries["US Human Labor Force"][i],
+                H_phys: labelToSeries["US Human Labor Force"][i],
+                AI_cog: labelToSeries["US AI cognitive"][i],
+                R_phys: labelToSeries["US RObotic physical"][i],
+                bar_auto_c: labelToSeries["% of cognitive jobs that can be automated"][i],
+                bar_auto_p: labelToSeries["% of physical jobs that can be automated"][i]
+            });
+        }
+
+        return data;
+    }
+
+    // ========================================
+    // Charting
+    // ========================================
+
+    let wagesChart = null;
+    let muChart = null;
+
+    function createCharts(results) {
+        const years = results.map(r => r.year);
+        const wc = results.map(r => r.wc);
+        const wp = results.map(r => r.wp);
+        const qc = results.map(r => r.qc);
+        const qr = results.map(r => r.qr);
+        const mu_h_c = results.map(r => r.mu_h_c);
+        const mu_h_p = results.map(r => r.mu_h_p);
+        const mu_h_c_min = results.map(r => r.mu_h_c_min);
+        const mu_h_p_min = results.map(r => r.mu_h_p_min);
+
+        // Destroy existing charts
+        if (wagesChart) wagesChart.destroy();
+        if (muChart) muChart.destroy();
+
+        // Wages and Machine Prices chart
+        const wagesCtx = document.getElementById('wagesChart').getContext('2d');
+        wagesChart = new Chart(wagesCtx, {
+            type: 'line',
+            data: {
+                labels: years,
+                datasets: [
+                    {
+                        label: 'Human cognitive (w_c)',
+                        data: wc,
+                        borderColor: 'rgb(31, 119, 180)',
+                        backgroundColor: 'rgb(31, 119, 180)',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.1
+                    },
+                    {
+                        label: 'AI cognitive (q_c)',
+                        data: qc,
+                        borderColor: 'rgb(31, 119, 180)',
+                        backgroundColor: 'rgb(31, 119, 180)',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        fill: false,
+                        tension: 0.1
+                    },
+                    {
+                        label: 'Human physical (w_p)',
+                        data: wp,
+                        borderColor: 'rgb(255, 127, 14)',
+                        backgroundColor: 'rgb(255, 127, 14)',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.1
+                    },
+                    {
+                        label: 'Robot physical (q_p)',
+                        data: qr,
+                        borderColor: 'rgb(255, 127, 14)',
+                        backgroundColor: 'rgb(255, 127, 14)',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        fill: false,
+                        tension: 0.1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Wages and machine prices over time'
+                    },
+                    legend: {
+                        position: 'top'
+                    }
+                },
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Year'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Price / wage'
+                        },
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+
+        // Mu terms chart
+        const muCtx = document.getElementById('muChart').getContext('2d');
+        muChart = new Chart(muCtx, {
+            type: 'line',
+            data: {
+                labels: years,
+                datasets: [
+                    {
+                        label: 'Cognitive: automated (eq)',
+                        data: mu_h_c.map(m => 1 - m),
+                        borderColor: 'rgb(31, 119, 180)',
+                        backgroundColor: 'rgb(31, 119, 180)',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.1
+                    },
+                    {
+                        label: 'Cognitive: automatable (frontier)',
+                        data: mu_h_c_min.map(m => 1 - m),
+                        borderColor: 'rgb(31, 119, 180)',
+                        backgroundColor: 'rgb(31, 119, 180)',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        fill: false,
+                        tension: 0.1
+                    },
+                    {
+                        label: 'Physical: automated (eq)',
+                        data: mu_h_p.map(m => 1 - m),
+                        borderColor: 'rgb(255, 127, 14)',
+                        backgroundColor: 'rgb(255, 127, 14)',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.1
+                    },
+                    {
+                        label: 'Physical: automatable (frontier)',
+                        data: mu_h_p_min.map(m => 1 - m),
+                        borderColor: 'rgb(255, 127, 14)',
+                        backgroundColor: 'rgb(255, 127, 14)',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        fill: false,
+                        tension: 0.1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Automatable vs automated task shares'
+                    },
+                    legend: {
+                        position: 'top'
+                    }
+                },
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Year'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Task share'
+                        },
+                        min: 0,
+                        max: 1
+                    }
+                }
+            }
+        });
+    }
+
+    function createResultsTable(results) {
+        const container = document.getElementById('tableContainer');
+
+        let html = '<table><thead><tr>';
+        html += '<th>Year</th><th>mu_h_c</th><th>mu_h_p</th><th>w_c</th><th>q_c</th><th>w_p</th><th>q_p</th><th>Regime C</th><th>Regime P</th>';
+        html += '</tr></thead><tbody>';
+
+        for (const r of results) {
+            html += '<tr>';
+            html += `<td>${r.year}</td>`;
+            html += `<td>${r.mu_h_c.toFixed(4)}</td>`;
+            html += `<td>${r.mu_h_p.toFixed(4)}</td>`;
+            html += `<td>${r.wc.toExponential(2)}</td>`;
+            html += `<td>${r.qc.toExponential(2)}</td>`;
+            html += `<td>${r.wp.toExponential(2)}</td>`;
+            html += `<td>${r.qr.toExponential(2)}</td>`;
+            html += `<td>${r.regime_c}</td>`;
+            html += `<td>${r.regime_p}</td>`;
+            html += '</tr>';
+        }
+
+        html += '</tbody></table>';
+        container.innerHTML = html;
+        document.getElementById('resultsTable').classList.remove('hidden');
+    }
+
+    // ========================================
+    // Main App Logic
+    // ========================================
+
+    let loadedData = null;
+
+    function showStatus(message, type) {
+        const statusEl = document.getElementById('status');
+        statusEl.textContent = message;
+        statusEl.className = 'status ' + type;
+        statusEl.classList.remove('hidden');
+    }
+
+    document.getElementById('fileInput').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            try {
+                const csvText = event.target.result;
+                loadedData = parseCSV(csvText);
+                showStatus(`Loaded ${loadedData.length} years of data (${loadedData[0].year} - ${loadedData[loadedData.length-1].year})`, 'success');
+                document.getElementById('runModel').disabled = false;
+            } catch (err) {
+                showStatus('Error parsing file: ' + err.message, 'error');
+                loadedData = null;
+                document.getElementById('runModel').disabled = true;
+            }
+        };
+        reader.readAsText(file);
+    });
+
+    document.getElementById('runModel').addEventListener('click', function() {
+        if (!loadedData) {
+            showStatus('Please upload a CSV file first', 'error');
+            return;
+        }
+
+        try {
+            showStatus('Running model...', 'info');
+
+            const params = getParams();
+            const results = loadedData.map(row => ({
+                year: row.year,
+                ...row,
+                ...solveMuOneYear(row, params)
+            }));
+
+            createCharts(results);
+            createResultsTable(results);
+
+            showStatus('Model completed successfully!', 'success');
+        } catch (err) {
+            showStatus('Error running model: ' + err.message, 'error');
+            console.error(err);
+        }
+    });
+    </script>
+</body>
+</html>
