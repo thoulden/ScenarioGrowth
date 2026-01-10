@@ -95,6 +95,13 @@
             background: #ccc;
             cursor: not-allowed;
         }
+        .template-btn {
+            background: #28a745;
+            margin-top: 0;
+        }
+        .template-btn:hover {
+            background: #1e7e34;
+        }
         .charts-section {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -168,9 +175,10 @@
 
     <div class="upload-section">
         <h2>Upload Spreadsheet</h2>
-        <p>Upload a CSV file with economic scenario data. The file should contain rows for: US Human Labor Force, US AI cognitive, US RObotic physical, US Economy, US 'Normal' Capital, and automation percentages.</p>
+        <p>Upload a CSV file with economic scenario data. Download the template below for the required format.</p>
         <div class="file-input-wrapper">
-            <input type="file" id="fileInput" accept=".csv,.xlsx,.xls">
+            <input type="file" id="fileInput" accept=".csv">
+            <button id="downloadTemplate" class="template-btn">Download Template</button>
         </div>
         <div id="status" class="status hidden"></div>
     </div>
@@ -202,6 +210,11 @@
                 <label for="sig_p">Sigma_p (human vs robot)</label>
                 <input type="number" id="sig_p" value="0.50" step="0.01" min="0.01">
                 <small>Substitution human vs robots (physical)</small>
+            </div>
+            <div class="param-group">
+                <label for="omega">Omega</label>
+                <input type="number" id="omega" value="1.00" step="0.01" min="0">
+                <small>Model weight parameter</small>
             </div>
         </div>
         <button id="runModel" disabled>Run Model</button>
@@ -237,7 +250,8 @@
             theta: parseFloat(document.getElementById('theta').value),
             eps: parseFloat(document.getElementById('eps').value),
             sig_c: parseFloat(document.getElementById('sig_c').value),
-            sig_p: parseFloat(document.getElementById('sig_p').value)
+            sig_p: parseFloat(document.getElementById('sig_p').value),
+            omega: parseFloat(document.getElementById('omega').value)
         };
     }
 
@@ -492,21 +506,46 @@
             labelToSeries[label] = series;
         }
 
-        // Extract required series
-        const requiredLabels = [
-            "US Human Labor Force",
-            "US AI cognitive",
-            "US RObotic physical",
-            "US Economy",
-            "US 'Normal' Capital",
-            "% of cognitive jobs that can be automated",
-            "% of physical jobs that can be automated"
-        ];
+        // Column name mappings (new template names -> internal names)
+        // Support both old format and new simplified format
+        const columnMappings = {
+            // Human labor
+            "Human Labor Force": "H",
+            "US Human Labor Force": "H",
+            // AI cognitive
+            "AI Cognitive": "AI_cog",
+            "US AI cognitive": "AI_cog",
+            // Robotic physical
+            "Robotic Physical": "R_phys",
+            "US RObotic physical": "R_phys",
+            // Output
+            "Output": "Y",
+            "US Economy": "Y",
+            // Capital
+            "Capital": "K",
+            "US 'Normal' Capital": "K",
+            // Cognitive automation frontier
+            "Cognitive Automation Frontier": "bar_auto_c",
+            "% of cognitive jobs that can be automated": "bar_auto_c",
+            // Physical automation frontier
+            "Physical Automation Frontier": "bar_auto_p",
+            "% of physical jobs that can be automated": "bar_auto_p"
+        };
 
-        for (const label of requiredLabels) {
-            if (!labelToSeries[label]) {
-                throw new Error(`Missing required row: "${label}"`);
+        // Map labels to internal names
+        const mappedSeries = {};
+        for (const [label, series] of Object.entries(labelToSeries)) {
+            if (columnMappings[label]) {
+                mappedSeries[columnMappings[label]] = series;
             }
+        }
+
+        // Check required fields
+        const requiredFields = ["H", "AI_cog", "R_phys", "Y", "K", "bar_auto_c", "bar_auto_p"];
+        const missingFields = requiredFields.filter(f => !mappedSeries[f]);
+
+        if (missingFields.length > 0) {
+            throw new Error(`Missing required rows. Please ensure your CSV has: Human Labor Force, AI Cognitive, Robotic Physical, Output, Capital, Cognitive Automation Frontier, Physical Automation Frontier`);
         }
 
         // Build data array
@@ -514,14 +553,14 @@
         for (let i = 0; i < years.length; i++) {
             data.push({
                 year: years[i],
-                Y: labelToSeries["US Economy"][i],
-                K: labelToSeries["US 'Normal' Capital"][i],
-                H_cog: labelToSeries["US Human Labor Force"][i],
-                H_phys: labelToSeries["US Human Labor Force"][i],
-                AI_cog: labelToSeries["US AI cognitive"][i],
-                R_phys: labelToSeries["US RObotic physical"][i],
-                bar_auto_c: labelToSeries["% of cognitive jobs that can be automated"][i],
-                bar_auto_p: labelToSeries["% of physical jobs that can be automated"][i]
+                Y: mappedSeries["Y"][i],
+                K: mappedSeries["K"][i],
+                H_cog: mappedSeries["H"][i],
+                H_phys: mappedSeries["H"][i],
+                AI_cog: mappedSeries["AI_cog"][i],
+                R_phys: mappedSeries["R_phys"][i],
+                bar_auto_c: mappedSeries["bar_auto_c"][i],
+                bar_auto_p: mappedSeries["bar_auto_p"][i]
             });
         }
 
@@ -787,6 +826,28 @@
             showStatus('Error running model: ' + err.message, 'error');
             console.error(err);
         }
+    });
+
+    // Template download
+    document.getElementById('downloadTemplate').addEventListener('click', function() {
+        const templateCSV = `,2025,2026,2027,2028,2029,2030,2031,2032,2033,2034,2035,2036,2037,2038,2039,2040
+Human Labor Force,168.6M,169.0M,169.3M,169.6M,169.8M,167.3M,167.3M,157.5M,141.6M,141.6M,113.7M,85.3M,56.2M,41.7M,36.0M,33.3M
+AI Cognitive,0.2M,0.9M,3.9M,16.4M,51.8M,191.7M,841.6M,6.0B,50.1B,485.7B,5.5T,11.3T,22.5T,44.5T,87.7T,172.4T
+Robotic Physical,0.6,5.5,49.4,0.4K,4.0K,48.0K,576.0K,8.6M,129.6M,1.9B,17.5B,96.2B,529.3B,2.9T,16.0T,88.1T
+Output,29.7T,30T,31T,32T,32T,33T,35T,38T,44T,61T,116T,198T,361T,685T,1329T,2618T
+Capital,110T,111T,111T,112T,113T,113T,114T,115T,117T,120T,126T,143T,176T,239T,364T,612T
+Cognitive Automation Frontier,2%,3%,5%,17%,38%,52%,65%,78%,92%,100%,100%,100%,100%,100%,100%,100%
+Physical Automation Frontier,2%,2%,2%,2%,5%,17%,38%,52%,65%,78%,92%,100%,100%,100%,100%,100%`;
+
+        const blob = new Blob([templateCSV], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'scenario_template.csv';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     });
     </script>
 </body>
