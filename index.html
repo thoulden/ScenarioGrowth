@@ -199,41 +199,41 @@
         <h3 class="param-section-title">Choice Parameters (Elasticities)</h3>
         <div class="params-grid">
             <div class="param-group">
-                <label for="eps">Epsilon (cog vs phys)</label>
+                <label for="eps">ε (cog vs phys)</label>
                 <input type="number" id="eps" value="0.40" step="0.01" min="0.01">
                 <small>Substitution between cognitive and physical</small>
             </div>
             <div class="param-group">
-                <label for="sig_c">Sigma_c (human vs AI)</label>
+                <label for="sig_c">σ_c (human vs AI)</label>
                 <input type="number" id="sig_c" value="0.50" step="0.01" min="0.01">
                 <small>Substitution human vs AI (cognitive)</small>
             </div>
             <div class="param-group">
-                <label for="sig_p">Sigma_p (human vs robot)</label>
+                <label for="sig_p">σ_p (human vs robot)</label>
                 <input type="number" id="sig_p" value="0.50" step="0.01" min="0.01">
                 <small>Substitution human vs robots (physical)</small>
             </div>
             <div class="param-group">
-                <label for="omega">Omega (labor elasticity)</label>
+                <label for="omega">ω (labor elasticity)</label>
                 <input type="number" id="omega" value="0.10" step="0.1" min="0">
-                <small>L_c/L_p = kappa * (w_c/w_p)^omega</small>
+                <small>L_c/L_p = κ · (w_c/w_p)^ω</small>
             </div>
         </div>
 
         <h3 class="param-section-title">Target Parameters</h3>
         <div class="params-grid">
             <div class="param-group">
-                <label for="alpha">Alpha (capital share)</label>
+                <label for="alpha">α (capital share)</label>
                 <input type="number" id="alpha" value="0.30" step="0.01" min="0" max="1">
                 <small>Cobb-Douglas capital share</small>
             </div>
             <div class="param-group">
-                <label for="kappa">Kappa (labor ratio scale)</label>
+                <label for="kappa">κ (labor ratio scale)</label>
                 <input type="number" id="kappa" value="1.68" step="0.1" min="0.01">
                 <small>Scale factor in L_c/L_p</small>
             </div>
             <div class="param-group">
-                <label for="theta">Theta (cognitive weight)</label>
+                <label for="theta">θ (cognitive weight)</label>
                 <input type="number" id="theta" value="0.68" step="0.01" min="0" max="1">
                 <small>Weight on cognitive in L_eff CES</small>
             </div>
@@ -248,7 +248,7 @@
             <canvas id="wagesChart"></canvas>
         </div>
         <div class="chart-container">
-            <h3>Human Task Shares (mu terms)</h3>
+            <h3>Human Task Shares (μ terms)</h3>
             <canvas id="muChart"></canvas>
         </div>
     </div>
@@ -665,7 +665,7 @@
                 labels: years,
                 datasets: [
                     {
-                        label: 'Human cognitive (w_c)',
+                        label: 'Human cognitive (wc)',
                         data: wc,
                         borderColor: 'rgb(31, 119, 180)',
                         backgroundColor: 'rgb(31, 119, 180)',
@@ -674,7 +674,7 @@
                         tension: 0.1
                     },
                     {
-                        label: 'AI cognitive (q_c)',
+                        label: 'AI cognitive (qc)',
                         data: qc,
                         borderColor: 'rgb(31, 119, 180)',
                         backgroundColor: 'rgb(31, 119, 180)',
@@ -684,7 +684,7 @@
                         tension: 0.1
                     },
                     {
-                        label: 'Human physical (w_p)',
+                        label: 'Human physical (wp)',
                         data: wp,
                         borderColor: 'rgb(255, 127, 14)',
                         backgroundColor: 'rgb(255, 127, 14)',
@@ -693,7 +693,7 @@
                         tension: 0.1
                     },
                     {
-                        label: 'Robot physical (q_p)',
+                        label: 'Robot physical (qp)',
                         data: qr,
                         borderColor: 'rgb(255, 127, 14)',
                         backgroundColor: 'rgb(255, 127, 14)',
