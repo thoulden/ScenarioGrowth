@@ -1,0 +1,1316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scenario Growth Model</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .upload-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .upload-section h2 {
+            margin-top: 0;
+            color: #555;
+        }
+        .file-input-wrapper {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        input[type="file"] {
+            padding: 10px;
+            border: 2px dashed #ccc;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        input[type="file"]:hover {
+            border-color: #007bff;
+        }
+        .params-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .params-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        .param-group {
+            display: flex;
+            flex-direction: column;
+        }
+        .param-group label {
+            font-weight: 500;
+            margin-bottom: 5px;
+            color: #555;
+        }
+        .param-group input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .param-group small {
+            color: #888;
+            margin-top: 3px;
+        }
+        .param-section-title {
+            color: #555;
+            font-size: 14px;
+            margin: 15px 0 10px 0;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #eee;
+        }
+        .param-section-title:first-of-type {
+            margin-top: 0;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 15px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .template-btn {
+            background: #28a745;
+            margin-top: 0;
+        }
+        .template-btn:hover {
+            background: #1e7e34;
+        }
+        .charts-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 900px) {
+            .charts-section {
+                grid-template-columns: 1fr;
+            }
+        }
+        .chart-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-container h3 {
+            margin-top: 0;
+            color: #555;
+            text-align: center;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        .status.error {
+            background: #fee;
+            color: #c00;
+        }
+        .status.success {
+            background: #efe;
+            color: #060;
+        }
+        .status.info {
+            background: #eef;
+            color: #006;
+        }
+        .hidden {
+            display: none;
+        }
+        .results-table {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-top: 20px;
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+        th, td {
+            padding: 8px;
+            text-align: right;
+            border-bottom: 1px solid #eee;
+        }
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+        }
+        td:first-child, th:first-child {
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+    <h1>Scenario Growth Model</h1>
+
+    <div class="upload-section">
+        <h2>Upload Spreadsheet</h2>
+        <p>Upload a CSV file with economic scenario data. Download the template below for the required format.</p>
+        <div class="file-input-wrapper">
+            <input type="file" id="fileInput" accept=".csv">
+            <button id="downloadTemplate" class="template-btn">Download Template</button>
+        </div>
+        <div id="status" class="status hidden"></div>
+    </div>
+
+    <div class="params-section">
+        <h2>Model Parameters</h2>
+
+        <!-- Model Type Toggle -->
+        <div style="margin-bottom: 15px; padding: 10px; background: #f0f7ff; border-radius: 4px; border: 1px solid #cce5ff;">
+            <label style="display: flex; align-items: center; cursor: pointer;">
+                <input type="checkbox" id="use2Sector" style="margin-right: 10px; width: 18px; height: 18px;">
+                <span style="font-weight: 600; color: #004085;">Use 2-Sector Model</span>
+                <small style="margin-left: 10px; color: #666;">(Services vs Goods with different cognitive intensities)</small>
+            </label>
+        </div>
+
+        <h3 class="param-section-title">Choice Parameters (Elasticities)</h3>
+        <div class="params-grid">
+            <div class="param-group">
+                <label for="eps">ε (cog vs phys)</label>
+                <input type="number" id="eps" value="0.40" step="0.01" min="0.01">
+                <small>Substitution between cognitive and physical</small>
+            </div>
+            <div class="param-group">
+                <label for="sig_c">σ_c (human vs AI)</label>
+                <input type="number" id="sig_c" value="0.50" step="0.01" min="0.01">
+                <small>Substitution human vs AI (cognitive)</small>
+            </div>
+            <div class="param-group">
+                <label for="sig_p">σ_p (human vs robot)</label>
+                <input type="number" id="sig_p" value="0.50" step="0.01" min="0.01">
+                <small>Substitution human vs robots (physical)</small>
+            </div>
+            <div class="param-group">
+                <label for="omega">ω (labor elasticity)</label>
+                <input type="number" id="omega" value="1.0" step="0.1" min="0">
+                <small>L_c/L_p = κ · (w_c/w_p)^ω</small>
+            </div>
+        </div>
+
+        <!-- 2-Sector specific parameters (hidden by default) -->
+        <div id="twoSectorParams" class="hidden">
+            <h3 class="param-section-title">2-Sector Parameters</h3>
+            <div class="params-grid">
+                <div class="param-group">
+                    <label for="theta_S">θ_S (services cognitive intensity)</label>
+                    <input type="number" id="theta_S" value="0.65" step="0.01" min="0.01" max="0.99">
+                    <small>Cognitive weight in services sector (higher)</small>
+                </div>
+                <div class="param-group">
+                    <label for="theta_G">θ_G (goods cognitive intensity)</label>
+                    <input type="number" id="theta_G" value="0.35" step="0.01" min="0.01" max="0.99">
+                    <small>Cognitive weight in goods sector (lower)</small>
+                </div>
+                <div class="param-group">
+                    <label for="eta">η (sector substitution)</label>
+                    <input type="number" id="eta" value="2.0" step="0.1" min="0.1">
+                    <small>Elasticity between services and goods</small>
+                </div>
+            </div>
+        </div>
+
+        <h3 class="param-section-title">Target Parameters</h3>
+        <div class="params-grid">
+            <div class="param-group">
+                <label for="alpha">α (capital share)</label>
+                <input type="number" id="alpha" value="0.30" step="0.01" min="0" max="1">
+                <small>Cobb-Douglas capital share</small>
+            </div>
+            <div class="param-group">
+                <label for="kappa">κ (labor ratio scale)</label>
+                <input type="number" id="kappa" value="1.0" step="0.1" min="0.01">
+                <small>Scale factor in L_c/L_p</small>
+            </div>
+            <!-- 1-sector theta (shown by default) -->
+            <div class="param-group" id="thetaParam">
+                <label for="theta">θ (cognitive weight)</label>
+                <input type="number" id="theta" value="0.68" step="0.01" min="0" max="1">
+                <small>Weight on cognitive in L_eff CES</small>
+            </div>
+            <!-- 2-sector nu (hidden by default) -->
+            <div class="param-group hidden" id="nuParam">
+                <label for="nu">ν (services weight - target)</label>
+                <input type="number" id="nu" value="0.50" step="0.01" min="0.01" max="0.99">
+                <small>Weight on services in final demand</small>
+            </div>
+        </div>
+
+        <button id="runModel" disabled>Run Model</button>
+    </div>
+
+    <div class="charts-section">
+        <div class="chart-container">
+            <h3>Wages and Machine Prices over Time</h3>
+            <canvas id="wagesChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>Human Task Shares (μ terms)</h3>
+            <canvas id="muChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>Human Labor Allocation (ℓc)</h3>
+            <canvas id="ellChart"></canvas>
+        </div>
+    </div>
+
+    <div id="resultsTable" class="results-table hidden">
+        <h3>Detailed Results</h3>
+        <div id="tableContainer"></div>
+    </div>
+
+    <script>
+    // ========================================
+    // Economic Model (ported from Python)
+    // ========================================
+
+    const TINY = 1e-12;
+
+    // Check if 2-sector mode is enabled
+    function is2SectorMode() {
+        return document.getElementById('use2Sector').checked;
+    }
+
+    // Get parameters from inputs
+    function getParams() {
+        const params = {
+            alpha: parseFloat(document.getElementById('alpha').value),
+            eps: parseFloat(document.getElementById('eps').value),
+            sig_c: parseFloat(document.getElementById('sig_c').value),
+            sig_p: parseFloat(document.getElementById('sig_p').value),
+            kappa: parseFloat(document.getElementById('kappa').value),
+            omega: parseFloat(document.getElementById('omega').value)
+        };
+
+        if (is2SectorMode()) {
+            params.nu = parseFloat(document.getElementById('nu').value);
+            params.eta = parseFloat(document.getElementById('eta').value);
+            params.theta_S = parseFloat(document.getElementById('theta_S').value);
+            params.theta_G = parseFloat(document.getElementById('theta_G').value);
+        } else {
+            params.theta = parseFloat(document.getElementById('theta').value);
+        }
+
+        return params;
+    }
+
+    // CES task aggregator
+    function cesTaskAgg(x, y, mu, sigma) {
+        x = Math.max(x, TINY);
+        y = Math.max(y, TINY);
+        mu = Math.max(TINY, Math.min(mu, 1.0 - TINY));
+
+        if (Math.abs(sigma - 1.0) < 1e-10) {
+            // Cobb-Douglas limit
+            return Math.pow(x, mu) * Math.pow(y, 1.0 - mu);
+        }
+
+        const rho = (sigma - 1.0) / sigma;
+        const term1 = Math.pow(mu, 1.0 / sigma) * Math.pow(x, rho);
+        const term2 = Math.pow(1.0 - mu, 1.0 / sigma) * Math.pow(y, rho);
+        return Math.pow(term1 + term2, 1.0 / rho);
+    }
+
+    // Derivative wrt first input (weight mu)
+    function dQdxFirst(Q, x, mu, sigma) {
+        x = Math.max(x, TINY);
+        Q = Math.max(Q, TINY);
+        mu = Math.max(TINY, Math.min(mu, 1.0 - TINY));
+
+        if (Math.abs(sigma - 1.0) < 1e-10) {
+            return mu * Q / x;
+        }
+
+        const rho = (sigma - 1.0) / sigma;
+        return Math.pow(Q, 1.0 - rho) * Math.pow(mu, 1.0 / sigma) * Math.pow(x, rho - 1.0);
+    }
+
+    // Derivative wrt second input (weight 1-mu)
+    function dQdySecond(Q, y, mu, sigma) {
+        y = Math.max(y, TINY);
+        Q = Math.max(Q, TINY);
+        mu = Math.max(TINY, Math.min(mu, 1.0 - TINY));
+
+        if (Math.abs(sigma - 1.0) < 1e-10) {
+            return (1.0 - mu) * Q / y;
+        }
+
+        const rho = (sigma - 1.0) / sigma;
+        return Math.pow(Q, 1.0 - rho) * Math.pow(1.0 - mu, 1.0 / sigma) * Math.pow(y, rho - 1.0);
+    }
+
+    // Bisection root finder
+    function bisectRoot(func, lo, hi, maxIter = 80, tol = 1e-12) {
+        let flo = func(lo);
+        let fhi = func(hi);
+
+        if (Math.abs(flo) < tol) return lo;
+        if (Math.abs(fhi) < tol) return hi;
+
+        if (flo * fhi > 0) {
+            return Math.abs(flo) < Math.abs(fhi) ? lo : hi;
+        }
+
+        let a = lo, b = hi, fa = flo, fb = fhi;
+
+        for (let i = 0; i < maxIter; i++) {
+            const m = 0.5 * (a + b);
+            const fm = func(m);
+
+            if (Math.abs(fm) < tol || (b - a) < 1e-14) {
+                return m;
+            }
+
+            if (fa * fm <= 0) {
+                b = m;
+                fb = fm;
+            } else {
+                a = m;
+                fa = fm;
+            }
+        }
+
+        return 0.5 * (a + b);
+    }
+
+    // Human split given wage ratio z = wc/wp
+    // L_c/L_p = kappa * z^omega => ell_c = kappa*z^omega / (kappa*z^omega + 1)
+    function humanSplit(L, z, kappa, omega) {
+        z = Math.max(z, TINY);
+        const x = kappa * Math.pow(z, omega);
+        const ell = x / (x + 1.0);
+        const Hc = ell * L;
+        const Hp = (1.0 - ell) * L;
+        return { Hc: Math.max(Hc, TINY), Hp: Math.max(Hp, TINY), ell_c: ell };
+    }
+
+    // Prices given mu and wage ratio z (which determines Hc, Hp via human split)
+    function pricesGivenMuAndZ(Y, K, L, AIc, Rp, mu_h_c, mu_h_p, z, params) {
+        const { alpha, theta, eps, sig_c, sig_p, kappa, omega } = params;
+
+        // Compute human split from wage ratio
+        const split = humanSplit(L, z, kappa, omega);
+        const Hc = split.Hc;
+        const Hp = split.Hp;
+
+        // Nests
+        const L_cog = cesTaskAgg(Hc, AIc, mu_h_c, sig_c);
+        const L_phys = cesTaskAgg(Hp, Rp, mu_h_p, sig_p);
+        const L_eff = cesTaskAgg(L_cog, L_phys, theta, eps);
+
+        // Infer A from Y = A K^alpha L_eff^(1-alpha)
+        const A = Y / (Math.pow(K, alpha) * Math.pow(L_eff, 1.0 - alpha));
+        const r = alpha * Y / K;
+        const mp_Leff = (1.0 - alpha) * Y / L_eff;
+
+        // Chain rule derivatives
+        const dLeff_dLcog = dQdxFirst(L_eff, L_cog, theta, eps);
+        const dLeff_dLphys = dQdySecond(L_eff, L_phys, theta, eps);
+
+        const dLcog_dHc = dQdxFirst(L_cog, Hc, mu_h_c, sig_c);
+        const dLcog_dAIc = dQdySecond(L_cog, AIc, mu_h_c, sig_c);
+
+        const dLphys_dHp = dQdxFirst(L_phys, Hp, mu_h_p, sig_p);
+        const dLphys_dRp = dQdySecond(L_phys, Rp, mu_h_p, sig_p);
+
+        const wc = mp_Leff * dLeff_dLcog * dLcog_dHc;
+        const qc = mp_Leff * dLeff_dLcog * dLcog_dAIc;
+        const wp = mp_Leff * dLeff_dLphys * dLphys_dHp;
+        const qr = mp_Leff * dLeff_dLphys * dLphys_dRp;
+
+        const profit = Y - (r * K + wc * Hc + wp * Hp + qc * AIc + qr * Rp);
+
+        return { A, r, wc, wp, qc, qr, Hc, Hp, ell_c: split.ell_c, profit };
+    }
+
+    // Inner solver: fixed-point iteration for z = wc/wp
+    function solveZForMu(Y, K, L, AIc, Rp, mu_h_c, mu_h_p, params, z0 = 1.0, damp = 0.6, maxIter = 200, tol = 1e-10) {
+        let logz = Math.log(z0);
+
+        for (let i = 0; i < maxIter; i++) {
+            const z = Math.exp(logz);
+            const out = pricesGivenMuAndZ(Y, K, L, AIc, Rp, mu_h_c, mu_h_p, z, params);
+            const z_hat = out.wc / out.wp;
+            const logz_hat = Math.log(z_hat);
+
+            if (Math.abs(logz_hat - logz) < tol) {
+                out.z = Math.exp(logz_hat);
+                return out;
+            }
+
+            logz = (1.0 - damp) * logz + damp * logz_hat;
+        }
+
+        // Return last result even if not fully converged
+        const z = Math.exp(logz);
+        const out = pricesGivenMuAndZ(Y, K, L, AIc, Rp, mu_h_c, mu_h_p, z, params);
+        out.z = z;
+        out.z_converged = false;
+        return out;
+    }
+
+    // Main solver for one year
+    function solveMuOneYear(row, params) {
+        const { Y, K, H_cog, AI_cog, R_phys, bar_auto_c, bar_auto_p } = row;
+
+        const L = H_cog;  // Total human labor
+        const AIc = AI_cog;
+        const Rp = R_phys;
+
+        // bar_auto is max automatable share => min human share = 1 - bar_auto
+        const mu_h_c_min = Math.max(1e-9, Math.min(1.0 - 1e-9, 1.0 - Math.max(0, Math.min(bar_auto_c, 1.0 - 1e-12))));
+        const mu_h_p_min = Math.max(1e-9, Math.min(1.0 - 1e-9, 1.0 - Math.max(0, Math.min(bar_auto_p, 1.0 - 1e-12))));
+
+        // Start at frontier (automate as much as possible)
+        let mu_h_c = mu_h_c_min;
+        let mu_h_p = mu_h_p_min;
+
+        // Solve for z at frontier
+        let out = solveZForMu(Y, K, L, AIc, Rp, mu_h_c, mu_h_p, params, 1.0);
+
+        const need_c = out.wc < out.qc;
+        const need_p = out.wp < out.qr;
+
+        // Coordinate bisection on mu's (each evaluation solves the inner z fixed-point)
+        let mu_c_cur = mu_h_c;
+        let mu_p_cur = mu_h_p;
+
+        for (let iter = 0; iter < 30; iter++) {
+            const prev_c = mu_c_cur;
+            const prev_p = mu_p_cur;
+
+            if (need_c) {
+                const f = (mu) => {
+                    const o = solveZForMu(Y, K, L, AIc, Rp, mu, mu_p_cur, params, 1.0);
+                    return Math.log(o.wc / o.qc);
+                };
+                mu_c_cur = bisectRoot(f, mu_h_c_min, 1.0 - 1e-9);
+            }
+
+            if (need_p) {
+                const g = (mu) => {
+                    const o = solveZForMu(Y, K, L, AIc, Rp, mu_c_cur, mu, params, 1.0);
+                    return Math.log(o.wp / o.qr);
+                };
+                mu_p_cur = bisectRoot(g, mu_h_p_min, 1.0 - 1e-9);
+            }
+
+            if (Math.max(Math.abs(mu_c_cur - prev_c), Math.abs(mu_p_cur - prev_p)) < 1e-10) {
+                break;
+            }
+        }
+
+        // Final solve with converged mu values
+        const final = solveZForMu(Y, K, L, AIc, Rp, mu_c_cur, mu_p_cur, params, 1.0);
+
+        return {
+            ...final,
+            mu_h_c: mu_c_cur,
+            mu_h_p: mu_p_cur,
+            mu_h_c_min: mu_h_c_min,
+            mu_h_p_min: mu_h_p_min,
+            H_cog_allocated: final.Hc,
+            H_phys_allocated: final.Hp,
+            regime_c: need_c ? "endogenous" : "frontier",
+            regime_p: need_p ? "endogenous" : "frontier"
+        };
+    }
+
+    // ========================================
+    // TWO-SECTOR MODEL
+    // ========================================
+
+    // CES price index (dual)
+    function cesPrice(p1, p2, mu, sigma) {
+        mu = Math.max(TINY, Math.min(mu, 1.0 - TINY));
+        p1 = Math.max(p1, TINY);
+        p2 = Math.max(p2, TINY);
+
+        if (Math.abs(sigma - 1.0) < 1e-10) {
+            return Math.pow(p1, mu) * Math.pow(p2, 1.0 - mu);
+        }
+
+        const one_minus = 1.0 - sigma;
+        return Math.pow(mu * Math.pow(p1, one_minus) + (1.0 - mu) * Math.pow(p2, one_minus), 1.0 / one_minus);
+    }
+
+    // Cobb-Douglas unit cost
+    function cdUnitCost(r, p_eff, A, alpha) {
+        const denom = Math.pow(alpha, alpha) * Math.pow(1.0 - alpha, 1.0 - alpha);
+        return (1.0 / A) * Math.pow(r, alpha) * Math.pow(p_eff, 1.0 - alpha) / denom;
+    }
+
+    // Normalize prices so final good = 1
+    function normalizePrices(P_S, P_G, nu, eta) {
+        let P;
+        if (Math.abs(eta - 1.0) < 1e-10) {
+            P = Math.pow(P_S, nu) * Math.pow(P_G, 1.0 - nu);
+        } else {
+            P = Math.pow(nu * Math.pow(P_S, 1.0 - eta) + (1.0 - nu) * Math.pow(P_G, 1.0 - eta), 1.0 / (1.0 - eta));
+        }
+        return { P_S: P_S / P, P_G: P_G / P, P_index: P };
+    }
+
+    // Sector outputs from prices
+    function sectorOutputs(Y, P_S, P_G, nu, eta) {
+        const S = nu * Math.pow(P_S, -eta) * Y;
+        const G = (1.0 - nu) * Math.pow(P_G, -eta) * Y;
+        return { S, G };
+    }
+
+    // 2-sector: compute block given prices
+    function sectorBlock2S(Y, K, L, AIc, Rp, mu_h_c, mu_h_p, wc, wp, qc, qr, params) {
+        const { alpha, nu, eta, theta_S, theta_G, eps, sig_c, sig_p, kappa, omega } = params;
+
+        // Human split
+        const z = Math.max(wc / wp, TINY);
+        const x = kappa * Math.pow(z, omega);
+        const ell = x / (x + 1.0);
+        const Hc_s = ell * L;
+        const Hp_s = (1.0 - ell) * L;
+
+        // Rental rate
+        const r = alpha * Y / K;
+
+        // Within-nest prices
+        const p_cog = cesPrice(wc, qc, mu_h_c, sig_c);
+        const p_phys = cesPrice(wp, qr, mu_h_p, sig_p);
+
+        // Sector effective labor prices
+        const p_eff_S = cesPrice(p_cog, p_phys, theta_S, eps);
+        const p_eff_G = cesPrice(p_cog, p_phys, theta_G, eps);
+
+        // Unit costs -> sector prices
+        let P_S = cdUnitCost(r, p_eff_S, 1.0, alpha);
+        let P_G = cdUnitCost(r, p_eff_G, 1.0, alpha);
+
+        // Normalize
+        const norm = normalizePrices(P_S, P_G, nu, eta);
+        P_S = norm.P_S;
+        P_G = norm.P_G;
+
+        // Sector outputs
+        const { S, G } = sectorOutputs(Y, P_S, P_G, nu, eta);
+
+        // Sector demands
+        function sectorDemands(Yi, Pi, p_eff_i, theta_i) {
+            const Leff = (1.0 - alpha) * Pi * Yi / p_eff_i;
+            const Lcog = theta_i * Math.pow(p_cog / p_eff_i, -eps) * Leff;
+            const Lphys = (1.0 - theta_i) * Math.pow(p_phys / p_eff_i, -eps) * Leff;
+
+            const Hc_d = mu_h_c * Math.pow(wc / p_cog, -sig_c) * Lcog;
+            const AI_d = (1.0 - mu_h_c) * Math.pow(qc / p_cog, -sig_c) * Lcog;
+            const Hp_d = mu_h_p * Math.pow(wp / p_phys, -sig_p) * Lphys;
+            const R_d = (1.0 - mu_h_p) * Math.pow(qr / p_phys, -sig_p) * Lphys;
+
+            return { Hc_d, Hp_d, AI_d, R_d };
+        }
+
+        const dem_S = sectorDemands(S, P_S, p_eff_S, theta_S);
+        const dem_G = sectorDemands(G, P_G, p_eff_G, theta_G);
+
+        return {
+            r, P_S, P_G, S, G,
+            Hc_s, Hp_s, ell_c: ell,
+            Hc_d: dem_S.Hc_d + dem_G.Hc_d,
+            Hp_d: dem_S.Hp_d + dem_G.Hp_d,
+            AI_d: dem_S.AI_d + dem_G.AI_d,
+            R_d: dem_S.R_d + dem_G.R_d
+        };
+    }
+
+    // 2-sector Newton solver for (wc, wp, qc, qr)
+    function solvePrices2S(Y, K, L, AIc, Rp, mu_h_c, mu_h_p, params, x0 = [1, 1, 1, 1], tol = 1e-10, maxIter = 80) {
+        let logx = x0.map(v => Math.log(v));
+
+        function residuals(logx) {
+            const [wc, wp, qc, qr] = logx.map(v => Math.exp(v));
+            const out = sectorBlock2S(Y, K, L, AIc, Rp, mu_h_c, mu_h_p, wc, wp, qc, qr, params);
+            return {
+                F: [
+                    Math.log(out.Hc_d / Math.max(out.Hc_s, TINY)),
+                    Math.log(out.Hp_d / Math.max(out.Hp_s, TINY)),
+                    Math.log(out.AI_d / Math.max(AIc, TINY)),
+                    Math.log(out.R_d / Math.max(Rp, TINY))
+                ],
+                out
+            };
+        }
+
+        const damping = 0.6;
+        let result = residuals(logx);
+
+        for (let iter = 0; iter < maxIter; iter++) {
+            result = residuals(logx);
+            const normF = Math.max(...result.F.map(Math.abs));
+
+            if (normF < tol) {
+                const [wc, wp, qc, qr] = logx.map(v => Math.exp(v));
+                return { ...result.out, wc, wp, qc, qr, residual_max: normF, iters: iter + 1 };
+            }
+
+            // Numerical Jacobian
+            const h = 1e-6;
+            const J = [];
+            for (let i = 0; i < 4; i++) {
+                const row = [];
+                for (let j = 0; j < 4; j++) {
+                    const step = logx.map((v, k) => k === j ? v + h : v);
+                    const stepM = logx.map((v, k) => k === j ? v - h : v);
+                    const Fp = residuals(step).F;
+                    const Fm = residuals(stepM).F;
+                    row.push((Fp[i] - Fm[i]) / (2 * h));
+                }
+                J.push(row);
+            }
+
+            // Solve J * dx = -F using simple Gaussian elimination
+            const dx = solveLinear4x4(J, result.F.map(v => -v));
+
+            // Line search
+            let success = false;
+            for (let ls = 0; ls < 20; ls++) {
+                const scale = Math.pow(damping, ls);
+                const cand = logx.map((v, i) => v + scale * dx[i]);
+                const Fcand = residuals(cand).F;
+                if (Math.max(...Fcand.map(Math.abs)) < normF) {
+                    logx = cand;
+                    success = true;
+                    break;
+                }
+            }
+            if (!success) {
+                logx = logx.map((v, i) => v + 0.1 * dx[i]);
+            }
+        }
+
+        const [wc, wp, qc, qr] = logx.map(v => Math.exp(v));
+        return { ...result.out, wc, wp, qc, qr, residual_max: Math.max(...result.F.map(Math.abs)), iters: maxIter };
+    }
+
+    // Simple 4x4 linear solver
+    function solveLinear4x4(A, b) {
+        const n = 4;
+        const aug = A.map((row, i) => [...row, b[i]]);
+
+        for (let col = 0; col < n; col++) {
+            let maxRow = col;
+            for (let row = col + 1; row < n; row++) {
+                if (Math.abs(aug[row][col]) > Math.abs(aug[maxRow][col])) maxRow = row;
+            }
+            [aug[col], aug[maxRow]] = [aug[maxRow], aug[col]];
+
+            if (Math.abs(aug[col][col]) < 1e-12) continue;
+
+            for (let row = col + 1; row < n; row++) {
+                const f = aug[row][col] / aug[col][col];
+                for (let j = col; j <= n; j++) aug[row][j] -= f * aug[col][j];
+            }
+        }
+
+        const x = new Array(n).fill(0);
+        for (let i = n - 1; i >= 0; i--) {
+            x[i] = aug[i][n];
+            for (let j = i + 1; j < n; j++) x[i] -= aug[i][j] * x[j];
+            x[i] /= aug[i][i] || 1;
+        }
+        return x;
+    }
+
+    // 2-sector: solve one year with endogenous automation margins
+    function solve2SectorOneYear(row, params) {
+        const { Y, K, H_cog, AI_cog, R_phys, bar_auto_c, bar_auto_p } = row;
+        const L = H_cog;
+        const AIc = AI_cog;
+        const Rp = R_phys;
+
+        const mu_h_c_min = Math.max(1e-9, Math.min(1.0 - 1e-9, 1.0 - Math.max(0, Math.min(bar_auto_c, 1.0 - 1e-12))));
+        const mu_h_p_min = Math.max(1e-9, Math.min(1.0 - 1e-9, 1.0 - Math.max(0, Math.min(bar_auto_p, 1.0 - 1e-12))));
+
+        let mu_c = mu_h_c_min;
+        let mu_p = mu_h_p_min;
+
+        let base = solvePrices2S(Y, K, L, AIc, Rp, mu_c, mu_p, params);
+        const need_c = base.wc < base.qc;
+        const need_p = base.wp < base.qr;
+
+        // Coordinate bisection
+        for (let iter = 0; iter < 25; iter++) {
+            const prev_c = mu_c;
+            const prev_p = mu_p;
+
+            if (need_c) {
+                const f = (mu) => {
+                    const o = solvePrices2S(Y, K, L, AIc, Rp, mu, mu_p, params);
+                    return Math.log(o.wc / o.qc);
+                };
+                mu_c = bisectRoot(f, mu_h_c_min, 1.0 - 1e-9);
+            }
+
+            if (need_p) {
+                const g = (mu) => {
+                    const o = solvePrices2S(Y, K, L, AIc, Rp, mu_c, mu, params);
+                    return Math.log(o.wp / o.qr);
+                };
+                mu_p = bisectRoot(g, mu_h_p_min, 1.0 - 1e-9);
+            }
+
+            if (Math.max(Math.abs(mu_c - prev_c), Math.abs(mu_p - prev_p)) < 1e-10) break;
+        }
+
+        const final = solvePrices2S(Y, K, L, AIc, Rp, mu_c, mu_p, params);
+
+        const labor_bill = final.wc * final.Hc_s + final.wp * final.Hp_s + final.qc * AIc + final.qr * Rp;
+        const cap_bill = final.r * K;
+        const profit = Y - labor_bill - cap_bill;
+
+        return {
+            ...final,
+            mu_h_c: mu_c,
+            mu_h_p: mu_p,
+            mu_h_c_min,
+            mu_h_p_min,
+            H_cog_allocated: final.Hc_s,
+            H_phys_allocated: final.Hp_s,
+            regime_c: need_c ? "endogenous" : "frontier",
+            regime_p: need_p ? "endogenous" : "frontier",
+            profit,
+            profit_share: profit / Y
+        };
+    }
+
+    // ========================================
+    // CSV Parsing
+    // ========================================
+
+    function parseCell(x) {
+        if (x === null || x === undefined || x === '') return NaN;
+
+        const s = String(x).trim();
+        if (s === '' || s.toLowerCase() === 'nan') return NaN;
+
+        // Percentage
+        if (s.endsWith('%')) {
+            return parseFloat(s.slice(0, -1)) / 100.0;
+        }
+
+        // Remove $ and commas
+        let s2 = s.replace(/\$/g, '').replace(/,/g, '').trim();
+
+        // Match number with optional suffix
+        const match = s2.match(/^([-+]?\d*\.?\d+)([KMBT])?$/i);
+        if (match) {
+            let num = parseFloat(match[1]);
+            const suf = match[2];
+            if (suf) {
+                const mult = { 'K': 1e3, 'M': 1e6, 'B': 1e9, 'T': 1e12 };
+                num *= mult[suf.toUpperCase()];
+            }
+            return num;
+        }
+
+        return parseFloat(s2);
+    }
+
+    function parseCSV(csvText) {
+        const result = Papa.parse(csvText, {
+            header: false,
+            skipEmptyLines: false
+        });
+
+        const rows = result.data;
+        if (rows.length === 0) {
+            throw new Error("Empty CSV file");
+        }
+
+        // First row should be headers with years
+        const headerRow = rows[0];
+        const yearCols = [];
+        const years = [];
+
+        for (let i = 0; i < headerRow.length; i++) {
+            const val = String(headerRow[i]).trim();
+            if (/^\d{4}$/.test(val)) {
+                yearCols.push(i);
+                years.push(parseInt(val));
+            }
+        }
+
+        if (years.length === 0) {
+            throw new Error("No year columns found in the header row");
+        }
+
+        // Build label to series map
+        const labelToSeries = {};
+        for (let r = 1; r < rows.length; r++) {
+            const row = rows[r];
+            if (!row || !row[0]) continue;
+
+            const label = String(row[0]).trim();
+            if (!label) continue;
+
+            const series = yearCols.map(i => parseCell(row[i]));
+            labelToSeries[label] = series;
+        }
+
+        // Column name mappings (new template names -> internal names)
+        // Support both old format and new simplified format
+        const columnMappings = {
+            // Human labor
+            "Human Labor Force": "H",
+            "US Human Labor Force": "H",
+            // AI cognitive
+            "AI Cognitive": "AI_cog",
+            "US AI cognitive": "AI_cog",
+            // Robotic physical
+            "Robotic Physical": "R_phys",
+            "US RObotic physical": "R_phys",
+            // Output
+            "Output": "Y",
+            "US Economy": "Y",
+            // Capital
+            "Capital": "K",
+            "US 'Normal' Capital": "K",
+            // Cognitive automation frontier
+            "Cognitive Automation Frontier": "bar_auto_c",
+            "% of cognitive jobs that can be automated": "bar_auto_c",
+            // Physical automation frontier
+            "Physical Automation Frontier": "bar_auto_p",
+            "% of physical jobs that can be automated": "bar_auto_p"
+        };
+
+        // Map labels to internal names
+        const mappedSeries = {};
+        for (const [label, series] of Object.entries(labelToSeries)) {
+            if (columnMappings[label]) {
+                mappedSeries[columnMappings[label]] = series;
+            }
+        }
+
+        // Check required fields
+        const requiredFields = ["H", "AI_cog", "R_phys", "Y", "K", "bar_auto_c", "bar_auto_p"];
+        const missingFields = requiredFields.filter(f => !mappedSeries[f]);
+
+        if (missingFields.length > 0) {
+            throw new Error(`Missing required rows. Please ensure your CSV has: Human Labor Force, AI Cognitive, Robotic Physical, Output, Capital, Cognitive Automation Frontier, Physical Automation Frontier`);
+        }
+
+        // Build data array
+        const data = [];
+        for (let i = 0; i < years.length; i++) {
+            data.push({
+                year: years[i],
+                Y: mappedSeries["Y"][i],
+                K: mappedSeries["K"][i],
+                H_cog: mappedSeries["H"][i],
+                H_phys: mappedSeries["H"][i],
+                AI_cog: mappedSeries["AI_cog"][i],
+                R_phys: mappedSeries["R_phys"][i],
+                bar_auto_c: mappedSeries["bar_auto_c"][i],
+                bar_auto_p: mappedSeries["bar_auto_p"][i]
+            });
+        }
+
+        return data;
+    }
+
+    // ========================================
+    // Charting
+    // ========================================
+
+    let wagesChart = null;
+    let muChart = null;
+    let ellChart = null;
+
+    function createCharts(results, is2Sector = false) {
+        const years = results.map(r => r.year);
+        const wc = results.map(r => r.wc);
+        const wp = results.map(r => r.wp);
+        const qc = results.map(r => r.qc);
+        const qr = results.map(r => r.qr);
+        const mu_h_c = results.map(r => r.mu_h_c);
+        const mu_h_p = results.map(r => r.mu_h_p);
+        const mu_h_c_min = results.map(r => r.mu_h_c_min);
+        const mu_h_p_min = results.map(r => r.mu_h_p_min);
+        const ell_c = results.map(r => r.ell_c);
+
+        // Destroy existing charts
+        if (wagesChart) wagesChart.destroy();
+        if (muChart) muChart.destroy();
+        if (ellChart) ellChart.destroy();
+
+        // Wages and Machine Prices chart
+        const wagesCtx = document.getElementById('wagesChart').getContext('2d');
+        wagesChart = new Chart(wagesCtx, {
+            type: 'line',
+            data: {
+                labels: years,
+                datasets: [
+                    {
+                        label: 'Human cognitive (wc)',
+                        data: wc,
+                        borderColor: 'rgb(31, 119, 180)',
+                        backgroundColor: 'rgb(31, 119, 180)',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.1
+                    },
+                    {
+                        label: 'AI cognitive (qc)',
+                        data: qc,
+                        borderColor: 'rgb(31, 119, 180)',
+                        backgroundColor: 'rgb(31, 119, 180)',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        fill: false,
+                        tension: 0.1
+                    },
+                    {
+                        label: 'Human physical (wp)',
+                        data: wp,
+                        borderColor: 'rgb(255, 127, 14)',
+                        backgroundColor: 'rgb(255, 127, 14)',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.1
+                    },
+                    {
+                        label: 'Robot physical (qp)',
+                        data: qr,
+                        borderColor: 'rgb(255, 127, 14)',
+                        backgroundColor: 'rgb(255, 127, 14)',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        fill: false,
+                        tension: 0.1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Wages and machine prices over time'
+                    },
+                    legend: {
+                        position: 'top'
+                    }
+                },
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Year'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Price / wage'
+                        },
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+
+        // Mu terms chart
+        const muCtx = document.getElementById('muChart').getContext('2d');
+        muChart = new Chart(muCtx, {
+            type: 'line',
+            data: {
+                labels: years,
+                datasets: [
+                    {
+                        label: 'Cognitive: automated (eq)',
+                        data: mu_h_c.map(m => 1 - m),
+                        borderColor: 'rgb(31, 119, 180)',
+                        backgroundColor: 'rgb(31, 119, 180)',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.1
+                    },
+                    {
+                        label: 'Cognitive: automatable (frontier)',
+                        data: mu_h_c_min.map(m => 1 - m),
+                        borderColor: 'rgb(31, 119, 180)',
+                        backgroundColor: 'rgb(31, 119, 180)',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        fill: false,
+                        tension: 0.1
+                    },
+                    {
+                        label: 'Physical: automated (eq)',
+                        data: mu_h_p.map(m => 1 - m),
+                        borderColor: 'rgb(255, 127, 14)',
+                        backgroundColor: 'rgb(255, 127, 14)',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.1
+                    },
+                    {
+                        label: 'Physical: automatable (frontier)',
+                        data: mu_h_p_min.map(m => 1 - m),
+                        borderColor: 'rgb(255, 127, 14)',
+                        backgroundColor: 'rgb(255, 127, 14)',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        fill: false,
+                        tension: 0.1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Automatable vs automated task shares'
+                    },
+                    legend: {
+                        position: 'top'
+                    }
+                },
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Year'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Task share'
+                        },
+                        min: 0,
+                        max: 1
+                    }
+                }
+            }
+        });
+
+        // Labor allocation chart (ell_c)
+        const ellCtx = document.getElementById('ellChart').getContext('2d');
+        ellChart = new Chart(ellCtx, {
+            type: 'line',
+            data: {
+                labels: years,
+                datasets: [
+                    {
+                        label: 'ℓc (cognitive share of human labor)',
+                        data: ell_c,
+                        borderColor: 'rgb(44, 160, 44)',
+                        backgroundColor: 'rgb(44, 160, 44)',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Human labor allocation over time'
+                    },
+                    legend: {
+                        position: 'top'
+                    }
+                },
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Year'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Share'
+                        },
+                        min: 0,
+                        max: 1
+                    }
+                }
+            }
+        });
+    }
+
+    function createResultsTable(results, is2Sector = false) {
+        const container = document.getElementById('tableContainer');
+
+        let html = '<table><thead><tr>';
+        if (is2Sector) {
+            html += '<th>Year</th><th>S</th><th>G</th><th>P_S</th><th>P_G</th><th>H_c</th><th>H_p</th><th>mu_h_c</th><th>mu_h_p</th><th>w_c</th><th>q_c</th><th>w_p</th><th>q_p</th><th>Regime C</th><th>Regime P</th>';
+        } else {
+            html += '<th>Year</th><th>H_c</th><th>H_p</th><th>mu_h_c</th><th>mu_h_p</th><th>w_c</th><th>q_c</th><th>w_p</th><th>q_p</th><th>Regime C</th><th>Regime P</th>';
+        }
+        html += '</tr></thead><tbody>';
+
+        for (const r of results) {
+            html += '<tr>';
+            html += `<td>${r.year}</td>`;
+            if (is2Sector) {
+                html += `<td>${r.S.toExponential(2)}</td>`;
+                html += `<td>${r.G.toExponential(2)}</td>`;
+                html += `<td>${r.P_S.toFixed(4)}</td>`;
+                html += `<td>${r.P_G.toFixed(4)}</td>`;
+            }
+            html += `<td>${r.H_cog_allocated.toExponential(2)}</td>`;
+            html += `<td>${r.H_phys_allocated.toExponential(2)}</td>`;
+            html += `<td>${r.mu_h_c.toFixed(4)}</td>`;
+            html += `<td>${r.mu_h_p.toFixed(4)}</td>`;
+            html += `<td>${r.wc.toExponential(2)}</td>`;
+            html += `<td>${r.qc.toExponential(2)}</td>`;
+            html += `<td>${r.wp.toExponential(2)}</td>`;
+            html += `<td>${r.qr.toExponential(2)}</td>`;
+            html += `<td>${r.regime_c}</td>`;
+            html += `<td>${r.regime_p}</td>`;
+            html += '</tr>';
+        }
+
+        html += '</tbody></table>';
+        container.innerHTML = html;
+        document.getElementById('resultsTable').classList.remove('hidden');
+    }
+
+    // ========================================
+    // Main App Logic
+    // ========================================
+
+    let loadedData = null;
+
+    function showStatus(message, type) {
+        const statusEl = document.getElementById('status');
+        statusEl.textContent = message;
+        statusEl.className = 'status ' + type;
+        statusEl.classList.remove('hidden');
+    }
+
+    document.getElementById('fileInput').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            try {
+                const csvText = event.target.result;
+                loadedData = parseCSV(csvText);
+                showStatus(`Loaded ${loadedData.length} years of data (${loadedData[0].year} - ${loadedData[loadedData.length-1].year})`, 'success');
+                document.getElementById('runModel').disabled = false;
+            } catch (err) {
+                showStatus('Error parsing file: ' + err.message, 'error');
+                loadedData = null;
+                document.getElementById('runModel').disabled = true;
+            }
+        };
+        reader.readAsText(file);
+    });
+
+    document.getElementById('runModel').addEventListener('click', function() {
+        if (!loadedData) {
+            showStatus('Please upload a CSV file first', 'error');
+            return;
+        }
+
+        try {
+            const use2Sector = is2SectorMode();
+            showStatus(`Running ${use2Sector ? '2-sector' : '1-sector'} model...`, 'info');
+
+            const params = getParams();
+            const solverFn = use2Sector ? solve2SectorOneYear : solveMuOneYear;
+
+            const results = loadedData.map(row => ({
+                year: row.year,
+                ...row,
+                ...solverFn(row, params)
+            }));
+
+            createCharts(results, use2Sector);
+            createResultsTable(results, use2Sector);
+
+            showStatus(`${use2Sector ? '2-sector' : '1-sector'} model completed successfully!`, 'success');
+        } catch (err) {
+            showStatus('Error running model: ' + err.message, 'error');
+            console.error(err);
+        }
+    });
+
+    // Toggle 2-sector parameter visibility
+    document.getElementById('use2Sector').addEventListener('change', function() {
+        const is2S = this.checked;
+        document.getElementById('twoSectorParams').classList.toggle('hidden', !is2S);
+        document.getElementById('thetaParam').classList.toggle('hidden', is2S);
+        document.getElementById('nuParam').classList.toggle('hidden', !is2S);
+    });
+
+    // Template download
+    document.getElementById('downloadTemplate').addEventListener('click', function() {
+        const templateCSV = `,2025,2026,2027,2028,2029,2030,2031,2032,2033,2034,2035,2036,2037,2038,2039,2040
+Human Labor Force,168.6M,169.0M,169.3M,169.6M,169.8M,167.3M,167.3M,157.5M,141.6M,141.6M,113.7M,85.3M,56.2M,41.7M,36.0M,33.3M
+AI Cognitive,0.2M,0.9M,3.9M,16.4M,51.8M,191.7M,841.6M,6.0B,50.1B,485.7B,5.5T,11.3T,22.5T,44.5T,87.7T,172.4T
+Robotic Physical,0.6,5.5,49.4,0.4K,4.0K,48.0K,576.0K,8.6M,129.6M,1.9B,17.5B,96.2B,529.3B,2.9T,16.0T,88.1T
+Output,29.7T,30T,31T,32T,32T,33T,35T,38T,44T,61T,116T,198T,361T,685T,1329T,2618T
+Capital,110T,111T,111T,112T,113T,113T,114T,115T,117T,120T,126T,143T,176T,239T,364T,612T
+Cognitive Automation Frontier,2%,3%,5%,17%,38%,52%,65%,78%,92%,100%,100%,100%,100%,100%,100%,100%
+Physical Automation Frontier,2%,2%,2%,2%,5%,17%,38%,52%,65%,78%,92%,100%,100%,100%,100%,100%`;
+
+        const blob = new Blob([templateCSV], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'scenario_template.csv';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    });
+    </script>
+</body>
+</html>
