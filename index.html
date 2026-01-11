@@ -293,6 +293,10 @@
             <h3>Human Labor Allocation (ℓc)</h3>
             <canvas id="ellChart"></canvas>
         </div>
+        <div class="chart-container hidden" id="pricesChartContainer">
+            <h3>Sector Prices over Time (2-Sector)</h3>
+            <canvas id="pricesChart"></canvas>
+        </div>
     </div>
 
     <div id="resultsTable" class="results-table hidden">
@@ -962,8 +966,11 @@
     let wagesChart = null;
     let muChart = null;
     let ellChart = null;
+    let pricesChart = null;
 
     function createCharts(results, is2Sector = false) {
+        // Show/hide prices chart container based on mode
+        document.getElementById('pricesChartContainer').classList.toggle('hidden', !is2Sector);
         const years = results.map(r => r.year);
         const wc = results.map(r => r.wc);
         const wp = results.map(r => r.wp);
@@ -979,6 +986,7 @@
         if (wagesChart) wagesChart.destroy();
         if (muChart) muChart.destroy();
         if (ellChart) ellChart.destroy();
+        if (pricesChart) pricesChart.destroy();
 
         // Wages and Machine Prices chart
         const wagesCtx = document.getElementById('wagesChart').getContext('2d');
@@ -1180,6 +1188,67 @@
                 }
             }
         });
+
+        // Sector Prices chart (2-sector only)
+        if (is2Sector) {
+            const P_S = results.map(r => r.P_S);
+            const P_G = results.map(r => r.P_G);
+
+            const pricesCtx = document.getElementById('pricesChart').getContext('2d');
+            pricesChart = new Chart(pricesCtx, {
+                type: 'line',
+                data: {
+                    labels: years,
+                    datasets: [
+                        {
+                            label: 'P_S (services price)',
+                            data: P_S,
+                            borderColor: 'rgb(148, 103, 189)',
+                            backgroundColor: 'rgb(148, 103, 189)',
+                            borderWidth: 2,
+                            fill: false,
+                            tension: 0.1
+                        },
+                        {
+                            label: 'P_G (goods price)',
+                            data: P_G,
+                            borderColor: 'rgb(214, 39, 40)',
+                            backgroundColor: 'rgb(214, 39, 40)',
+                            borderWidth: 2,
+                            fill: false,
+                            tension: 0.1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Sector prices over time (final good is numeraire)'
+                        },
+                        legend: {
+                            position: 'top'
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Year'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Price'
+                            },
+                            beginAtZero: false
+                        }
+                    }
+                }
+            });
+        }
     }
 
     function createResultsTable(results, is2Sector = false) {
