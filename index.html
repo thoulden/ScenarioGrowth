@@ -224,7 +224,7 @@
             </div>
             <div class="param-group">
                 <label for="omega">ω (labor elasticity)</label>
-                <input type="number" id="omega" value="1.0" step="0.1" min="0">
+                <input type="number" id="omega" value="0.1" step="0.1" min="0">
                 <small>L_c/L_p = κ · (w_c/w_p)^ω</small>
             </div>
         </div>
@@ -294,12 +294,16 @@
             <canvas id="ellChart"></canvas>
         </div>
         <div class="chart-container hidden" id="pricesChartContainer">
-            <h3>Sector Prices and Interest Rate (2-Sector)</h3>
+            <h3>Sector Prices (2-Sector)</h3>
             <canvas id="pricesChart"></canvas>
         </div>
         <div class="chart-container">
             <h3>Capital Allocation Shares</h3>
             <canvas id="capitalChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>Interest Rate over Time</h3>
+            <canvas id="interestChart"></canvas>
         </div>
     </div>
 
@@ -1070,6 +1074,7 @@
     let ellChart = null;
     let pricesChart = null;
     let capitalChart = null;
+    let interestChart = null;
 
     function createCharts(results, is2Sector = false) {
         // Show/hide prices chart container based on mode
@@ -1095,6 +1100,7 @@
         if (ellChart) ellChart.destroy();
         if (pricesChart) pricesChart.destroy();
         if (capitalChart) capitalChart.destroy();
+        if (interestChart) interestChart.destroy();
 
         // Wages and Machine Prices chart
         const wagesCtx = document.getElementById('wagesChart').getContext('2d');
@@ -1297,7 +1303,7 @@
             }
         });
 
-        // Sector Prices chart (2-sector only) - includes interest rate
+        // Sector Prices chart (2-sector only)
         if (is2Sector) {
             const P_S = results.map(r => r.P_S);
             const P_G = results.map(r => r.P_G);
@@ -1315,8 +1321,7 @@
                             backgroundColor: 'rgb(148, 103, 189)',
                             borderWidth: 2,
                             fill: false,
-                            tension: 0.1,
-                            yAxisID: 'y'
+                            tension: 0.1
                         },
                         {
                             label: 'P_G (goods price)',
@@ -1325,19 +1330,7 @@
                             backgroundColor: 'rgb(214, 39, 40)',
                             borderWidth: 2,
                             fill: false,
-                            tension: 0.1,
-                            yAxisID: 'y'
-                        },
-                        {
-                            label: 'r (interest rate)',
-                            data: r_rate,
-                            borderColor: 'rgb(44, 160, 44)',
-                            backgroundColor: 'rgb(44, 160, 44)',
-                            borderWidth: 2,
-                            borderDash: [5, 5],
-                            fill: false,
-                            tension: 0.1,
-                            yAxisID: 'y1'
+                            tension: 0.1
                         }
                     ]
                 },
@@ -1346,7 +1339,7 @@
                     plugins: {
                         title: {
                             display: true,
-                            text: 'Sector prices and interest rate over time'
+                            text: 'Sector prices over time (final good is numeraire)'
                         },
                         legend: {
                             position: 'top'
@@ -1360,26 +1353,11 @@
                             }
                         },
                         y: {
-                            type: 'linear',
-                            display: true,
-                            position: 'left',
                             title: {
                                 display: true,
                                 text: 'Price'
                             },
                             beginAtZero: false
-                        },
-                        y1: {
-                            type: 'logarithmic',
-                            display: true,
-                            position: 'right',
-                            title: {
-                                display: true,
-                                text: 'Interest rate (log)'
-                            },
-                            grid: {
-                                drawOnChartArea: false
-                            }
                         }
                     }
                 }
@@ -1447,6 +1425,53 @@
                         },
                         min: -0.05,
                         max: 1.05
+                    }
+                }
+            }
+        });
+
+        // Interest rate chart
+        const interestCtx = document.getElementById('interestChart').getContext('2d');
+        interestChart = new Chart(interestCtx, {
+            type: 'line',
+            data: {
+                labels: years,
+                datasets: [
+                    {
+                        label: 'r (interest rate)',
+                        data: r_rate,
+                        borderColor: 'rgb(44, 160, 44)',
+                        backgroundColor: 'rgb(44, 160, 44)',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Implied interest rate over time'
+                    },
+                    legend: {
+                        position: 'top'
+                    }
+                },
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Year'
+                        }
+                    },
+                    y: {
+                        type: 'logarithmic',
+                        title: {
+                            display: true,
+                            text: 'Interest rate (log scale)'
+                        }
                     }
                 }
             }
