@@ -294,8 +294,12 @@
             <canvas id="ellChart"></canvas>
         </div>
         <div class="chart-container hidden" id="pricesChartContainer">
-            <h3>Sector Prices over Time (2-Sector)</h3>
+            <h3>Sector Prices and Interest Rate (2-Sector)</h3>
             <canvas id="pricesChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>Capital Allocation Shares</h3>
+            <canvas id="capitalChart"></canvas>
         </div>
     </div>
 
@@ -310,6 +314,11 @@
     // ========================================
 
     const TINY = 1e-12;
+
+    // Depreciation rates (matching Python code)
+    const delta_K = 0.10;
+    const delta_C = 0.10;
+    const delta_R = 0.10;
 
     // Check if 2-sector mode is enabled
     function is2SectorMode() {
@@ -416,6 +425,83 @@
         }
 
         return 0.5 * (a + b);
+    }
+
+    // Solve for interest rate from capital market clearing
+    // K = alpha*Y/r + LAI*q_c/(r - delta_K + delta_C) + LR*q_p/(r - delta_K + delta_R)
+    function solveROneT(Kt, Yt, q_c, q_p, LAI, LR, alpha) {
+        const r_min = Math.max(1e-8, delta_K - delta_C + 1e-8, delta_K - delta_R + 1e-8);
+
+        function RHS(r) {
+            const termY = alpha * Yt / r;
+            let termC = 0.0;
+            if (LAI > 0 && isFinite(q_c)) {
+                termC = LAI * q_c / (r - delta_K + delta_C);
+            }
+            let termR = 0.0;
+            if (LR > 0 && isFinite(q_p)) {
+                termR = LR * q_p / (r - delta_K + delta_R);
+            }
+            return termY + termC + termR;
+        }
+
+        function H(r) {
+            return RHS(r) - Kt;
+        }
+
+        // Find upper bound where H(r_hi) < 0
+        let r_hi = Math.max(1.0, r_min * 10);
+        for (let i = 0; i < 80; i++) {
+            if (H(r_hi) < 0) break;
+            r_hi *= 2.0;
+        }
+
+        // Bisection
+        let a = r_min, b = r_hi;
+        let fa = H(a), fb = H(b);
+
+        if (!isFinite(fa)) {
+            a = r_min * 1.01;
+            fa = H(a);
+        }
+
+        for (let i = 0; i < 150; i++) {
+            const m = 0.5 * (a + b);
+            const fm = H(m);
+            if (Math.abs(fm) < 1e-12) {
+                a = b = m;
+                break;
+            }
+            if (fa * fm > 0) {
+                a = m;
+                fa = fm;
+            } else {
+                b = m;
+                fb = fm;
+            }
+        }
+        return 0.5 * (a + b);
+    }
+
+    // Compute capital allocations given r
+    function computeCapitalAllocations(Kt, Yt, r, q_c, q_p, LAI, LR, alpha) {
+        const K_Y = alpha * Yt / r;
+        let K_C = 0.0;
+        if (LAI > 0 && isFinite(q_c)) {
+            K_C = LAI * q_c / (r - delta_K + delta_C);
+        }
+        let K_R = 0.0;
+        if (LR > 0 && isFinite(q_p)) {
+            K_R = LR * q_p / (r - delta_K + delta_R);
+        }
+        return {
+            K_Y,
+            K_C,
+            K_R,
+            share_KY: K_Y / Kt,
+            share_KC: K_C / Kt,
+            share_KR: K_R / Kt
+        };
     }
 
     // Human split given wage ratio z = wc/wp
@@ -548,8 +634,16 @@
         // Final solve with converged mu values
         const final = solveZForMu(Y, K, L, AIc, Rp, mu_c_cur, mu_p_cur, params, 1.0);
 
+        // Solve for interest rate from capital market clearing
+        const r = solveROneT(K, Y, final.qc, final.qr, AIc, Rp, params.alpha);
+
+        // Compute capital allocations
+        const capAlloc = computeCapitalAllocations(K, Y, r, final.qc, final.qr, AIc, Rp, params.alpha);
+
         return {
             ...final,
+            r,  // Interest rate from capital market clearing
+            ...capAlloc,  // K_Y, K_C, K_R, share_KY, share_KC, share_KR
             mu_h_c: mu_c_cur,
             mu_h_p: mu_p_cur,
             mu_h_c_min: mu_h_c_min,
@@ -805,12 +899,20 @@
 
         const final = solvePrices2S(Y, K, L, AIc, Rp, mu_c, mu_p, params);
 
+        // Solve for interest rate from capital market clearing
+        const r = solveROneT(K, Y, final.qc, final.qr, AIc, Rp, params.alpha);
+
+        // Compute capital allocations
+        const capAlloc = computeCapitalAllocations(K, Y, r, final.qc, final.qr, AIc, Rp, params.alpha);
+
         const labor_bill = final.wc * final.Hc_s + final.wp * final.Hp_s + final.qc * AIc + final.qr * Rp;
-        const cap_bill = final.r * K;
+        const cap_bill = r * K;
         const profit = Y - labor_bill - cap_bill;
 
         return {
             ...final,
+            r,  // Interest rate from capital market clearing (replaces simple r = alpha*Y/K)
+            ...capAlloc,  // K_Y, K_C, K_R, share_KY, share_KC, share_KR
             mu_h_c: mu_c,
             mu_h_p: mu_p,
             mu_h_c_min,
@@ -967,6 +1069,7 @@
     let muChart = null;
     let ellChart = null;
     let pricesChart = null;
+    let capitalChart = null;
 
     function createCharts(results, is2Sector = false) {
         // Show/hide prices chart container based on mode
@@ -981,12 +1084,17 @@
         const mu_h_c_min = results.map(r => r.mu_h_c_min);
         const mu_h_p_min = results.map(r => r.mu_h_p_min);
         const ell_c = results.map(r => r.ell_c);
+        const r_rate = results.map(r => r.r);
+        const share_KY = results.map(r => r.share_KY);
+        const share_KC = results.map(r => r.share_KC);
+        const share_KR = results.map(r => r.share_KR);
 
         // Destroy existing charts
         if (wagesChart) wagesChart.destroy();
         if (muChart) muChart.destroy();
         if (ellChart) ellChart.destroy();
         if (pricesChart) pricesChart.destroy();
+        if (capitalChart) capitalChart.destroy();
 
         // Wages and Machine Prices chart
         const wagesCtx = document.getElementById('wagesChart').getContext('2d');
@@ -1189,7 +1297,7 @@
             }
         });
 
-        // Sector Prices chart (2-sector only)
+        // Sector Prices chart (2-sector only) - includes interest rate
         if (is2Sector) {
             const P_S = results.map(r => r.P_S);
             const P_G = results.map(r => r.P_G);
@@ -1207,7 +1315,8 @@
                             backgroundColor: 'rgb(148, 103, 189)',
                             borderWidth: 2,
                             fill: false,
-                            tension: 0.1
+                            tension: 0.1,
+                            yAxisID: 'y'
                         },
                         {
                             label: 'P_G (goods price)',
@@ -1216,7 +1325,19 @@
                             backgroundColor: 'rgb(214, 39, 40)',
                             borderWidth: 2,
                             fill: false,
-                            tension: 0.1
+                            tension: 0.1,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'r (interest rate)',
+                            data: r_rate,
+                            borderColor: 'rgb(44, 160, 44)',
+                            backgroundColor: 'rgb(44, 160, 44)',
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            fill: false,
+                            tension: 0.1,
+                            yAxisID: 'y1'
                         }
                     ]
                 },
@@ -1225,7 +1346,7 @@
                     plugins: {
                         title: {
                             display: true,
-                            text: 'Sector prices over time (final good is numeraire)'
+                            text: 'Sector prices and interest rate over time'
                         },
                         legend: {
                             position: 'top'
@@ -1239,16 +1360,97 @@
                             }
                         },
                         y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
                             title: {
                                 display: true,
                                 text: 'Price'
                             },
                             beginAtZero: false
+                        },
+                        y1: {
+                            type: 'logarithmic',
+                            display: true,
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: 'Interest rate (log)'
+                            },
+                            grid: {
+                                drawOnChartArea: false
+                            }
                         }
                     }
                 }
             });
         }
+
+        // Capital allocation shares chart
+        const capitalCtx = document.getElementById('capitalChart').getContext('2d');
+        capitalChart = new Chart(capitalCtx, {
+            type: 'line',
+            data: {
+                labels: years,
+                datasets: [
+                    {
+                        label: 'K_Y / K (output)',
+                        data: share_KY,
+                        borderColor: 'rgb(31, 119, 180)',
+                        backgroundColor: 'rgb(31, 119, 180)',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.1
+                    },
+                    {
+                        label: 'K_C / K (AI)',
+                        data: share_KC,
+                        borderColor: 'rgb(255, 127, 14)',
+                        backgroundColor: 'rgb(255, 127, 14)',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.1
+                    },
+                    {
+                        label: 'K_R / K (robots)',
+                        data: share_KR,
+                        borderColor: 'rgb(44, 160, 44)',
+                        backgroundColor: 'rgb(44, 160, 44)',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Capital allocation shares over time'
+                    },
+                    legend: {
+                        position: 'top'
+                    }
+                },
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Year'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Share of total capital'
+                        },
+                        min: -0.05,
+                        max: 1.05
+                    }
+                }
+            }
+        });
     }
 
     function createResultsTable(results, is2Sector = false) {
@@ -1256,31 +1458,31 @@
 
         let html = '<table><thead><tr>';
         if (is2Sector) {
-            html += '<th>Year</th><th>S</th><th>G</th><th>P_S</th><th>P_G</th><th>H_c</th><th>H_p</th><th>mu_h_c</th><th>mu_h_p</th><th>w_c</th><th>q_c</th><th>w_p</th><th>q_p</th><th>Regime C</th><th>Regime P</th>';
+            html += '<th>Year</th><th>r</th><th>S</th><th>G</th><th>P_S</th><th>P_G</th><th>K_Y/K</th><th>K_C/K</th><th>K_R/K</th><th>mu_h_c</th><th>mu_h_p</th><th>w_c</th><th>q_c</th><th>w_p</th><th>q_p</th>';
         } else {
-            html += '<th>Year</th><th>H_c</th><th>H_p</th><th>mu_h_c</th><th>mu_h_p</th><th>w_c</th><th>q_c</th><th>w_p</th><th>q_p</th><th>Regime C</th><th>Regime P</th>';
+            html += '<th>Year</th><th>r</th><th>K_Y/K</th><th>K_C/K</th><th>K_R/K</th><th>mu_h_c</th><th>mu_h_p</th><th>w_c</th><th>q_c</th><th>w_p</th><th>q_p</th>';
         }
         html += '</tr></thead><tbody>';
 
-        for (const r of results) {
+        for (const row of results) {
             html += '<tr>';
-            html += `<td>${r.year}</td>`;
+            html += `<td>${row.year}</td>`;
+            html += `<td>${row.r.toExponential(2)}</td>`;
             if (is2Sector) {
-                html += `<td>${r.S.toExponential(2)}</td>`;
-                html += `<td>${r.G.toExponential(2)}</td>`;
-                html += `<td>${r.P_S.toFixed(4)}</td>`;
-                html += `<td>${r.P_G.toFixed(4)}</td>`;
+                html += `<td>${row.S.toExponential(2)}</td>`;
+                html += `<td>${row.G.toExponential(2)}</td>`;
+                html += `<td>${row.P_S.toFixed(4)}</td>`;
+                html += `<td>${row.P_G.toFixed(4)}</td>`;
             }
-            html += `<td>${r.H_cog_allocated.toExponential(2)}</td>`;
-            html += `<td>${r.H_phys_allocated.toExponential(2)}</td>`;
-            html += `<td>${r.mu_h_c.toFixed(4)}</td>`;
-            html += `<td>${r.mu_h_p.toFixed(4)}</td>`;
-            html += `<td>${r.wc.toExponential(2)}</td>`;
-            html += `<td>${r.qc.toExponential(2)}</td>`;
-            html += `<td>${r.wp.toExponential(2)}</td>`;
-            html += `<td>${r.qr.toExponential(2)}</td>`;
-            html += `<td>${r.regime_c}</td>`;
-            html += `<td>${r.regime_p}</td>`;
+            html += `<td>${row.share_KY.toFixed(4)}</td>`;
+            html += `<td>${row.share_KC.toFixed(4)}</td>`;
+            html += `<td>${row.share_KR.toFixed(4)}</td>`;
+            html += `<td>${row.mu_h_c.toFixed(4)}</td>`;
+            html += `<td>${row.mu_h_p.toFixed(4)}</td>`;
+            html += `<td>${row.wc.toExponential(2)}</td>`;
+            html += `<td>${row.qc.toExponential(2)}</td>`;
+            html += `<td>${row.wp.toExponential(2)}</td>`;
+            html += `<td>${row.qr.toExponential(2)}</td>`;
             html += '</tr>';
         }
 
