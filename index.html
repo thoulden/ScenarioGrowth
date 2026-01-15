@@ -227,6 +227,11 @@
                 <input type="number" id="omega" value="0.1" step="0.1" min="0">
                 <small>L_c/L_p = κ · (w_c/w_p)^ω</small>
             </div>
+            <div class="param-group">
+                <label for="psi">ψ (labor supply elasticity)</label>
+                <input type="number" id="psi" value="1.0" step="0.1" min="0.01">
+                <small>L = B · w̄^(1/ψ)</small>
+            </div>
         </div>
 
         <!-- Land parameters (hidden by default) -->
@@ -330,7 +335,8 @@
             sig_p: parseFloat(document.getElementById('sig_p').value),
             kappa: parseFloat(document.getElementById('kappa').value),
             omega: parseFloat(document.getElementById('omega').value),
-            theta: parseFloat(document.getElementById('theta').value)
+            theta: parseFloat(document.getElementById('theta').value),
+            psi: parseFloat(document.getElementById('psi').value)
         };
 
         if (isLandMode()) {
@@ -403,6 +409,70 @@
     function land_share(Yfinal, M, zeta, sigma_L) {
         const v = v_land(Yfinal, M, zeta, sigma_L);
         return v * M / Yfinal;
+    }
+
+    // ========================================
+    // ENDOGENOUS LABOR SUPPLY FUNCTIONS
+    // ========================================
+
+    // Compute average wage: w̄ = w_c × ℓ_c + w_p × (1 - ℓ_c)
+    function computeAverageWage(wc, wp, ell_c) {
+        return wc * ell_c + wp * (1.0 - ell_c);
+    }
+
+    // Labor supply function: L = min(B × w̄^(1/ψ), WorkingAgePop)
+    function laborSupply(B, wbar, psi, workingAgePop) {
+        const L_uncapped = B * Math.pow(wbar, 1.0 / psi);
+        return Math.min(L_uncapped, workingAgePop);
+    }
+
+    // Calibrate B from base year: B = L_0 / w̄_0^(1/ψ)
+    function calibrateLaborSupplyB(L_0, wbar_0, psi) {
+        return L_0 / Math.pow(wbar_0, 1.0 / psi);
+    }
+
+    // Solve one year with endogenous labor supply
+    // Iterates until L converges
+    function solveWithEndogenousLabor(row, params, landParams, B, workingAgePop, maxIter = 50, tol = 1e-8) {
+        const psi = params.psi;
+
+        // Start with initial guess for L (use data value or working age pop * 0.6)
+        let L = row.H_data || workingAgePop * 0.6;
+
+        for (let iter = 0; iter < maxIter; iter++) {
+            // Create a modified row with current L estimate
+            const rowWithL = { ...row, H_cog: L, H_phys: L };
+
+            // Solve equilibrium given L
+            const result = solveMuOneYear(rowWithL, params, landParams);
+
+            // Compute average wage
+            const wbar = computeAverageWage(result.wc, result.wp, result.ell_c);
+
+            // Compute new L from labor supply equation
+            const L_new = laborSupply(B, wbar, psi, workingAgePop);
+
+            // Check convergence
+            if (Math.abs(L_new - L) / Math.max(L, TINY) < tol) {
+                // Converged - return result with endogenous L
+                result.L_endogenous = L_new;
+                result.wbar = wbar;
+                result.participation_rate = L_new / workingAgePop;
+                return result;
+            }
+
+            // Update L with damping for stability
+            L = 0.5 * L + 0.5 * L_new;
+        }
+
+        // Return last result even if not fully converged
+        const rowWithL = { ...row, H_cog: L, H_phys: L };
+        const result = solveMuOneYear(rowWithL, params, landParams);
+        result.L_endogenous = L;
+        result.wbar = computeAverageWage(result.wc, result.wp, result.ell_c);
+        result.participation_rate = L / workingAgePop;
+        result.L_converged = false;
+        return result;
     }
 
     // CES task aggregator
@@ -849,6 +919,8 @@
             // Human labor
             "Human Labor Force": "H",
             "US Human Labor Force": "H",
+            // Working age population (for endogenous labor supply)
+            "Human Working Age Population": "WorkingAgePop",
             // AI cognitive
             "AI Cognitive": "AI_cog",
             "US AI cognitive": "AI_cog",
@@ -894,6 +966,8 @@
                 K: mappedSeries["K"][i],
                 H_cog: mappedSeries["H"][i],
                 H_phys: mappedSeries["H"][i],
+                H_data: mappedSeries["H"][i],  // Original labor force from data (for calibration)
+                WorkingAgePop: mappedSeries["WorkingAgePop"] ? mappedSeries["WorkingAgePop"][i] : null,
                 AI_cog: mappedSeries["AI_cog"][i],
                 R_phys: mappedSeries["R_phys"][i],
                 bar_auto_c: mappedSeries["bar_auto_c"][i],
@@ -1529,16 +1603,44 @@
                 };
             }
 
-            const results = loadedData.map(row => ({
-                year: row.year,
-                ...row,
-                ...solveMuOneYear(row, params, landParams)
-            }));
+            // Check if we have Working Age Population data for endogenous labor supply
+            const hasWorkingAgePop = loadedData[0].WorkingAgePop !== null;
+
+            let results;
+            if (hasWorkingAgePop) {
+                // Endogenous labor supply mode
+                // Step 1: Solve base year with exogenous L to calibrate B
+                const baseRow = loadedData[0];
+                const baseResult = solveMuOneYear(baseRow, params, landParams);
+                const wbar_0 = computeAverageWage(baseResult.wc, baseResult.wp, baseResult.ell_c);
+                const L_0 = baseRow.H_data;
+                const B = calibrateLaborSupplyB(L_0, wbar_0, params.psi);
+
+                // Step 2: Solve each year with endogenous labor supply
+                results = loadedData.map(row => {
+                    const workingAgePop = row.WorkingAgePop;
+                    const solution = solveWithEndogenousLabor(row, params, landParams, B, workingAgePop);
+                    return {
+                        year: row.year,
+                        ...row,
+                        ...solution
+                    };
+                });
+            } else {
+                // Exogenous labor supply mode (original behavior)
+                results = loadedData.map(row => ({
+                    year: row.year,
+                    ...row,
+                    ...solveMuOneYear(row, params, landParams)
+                }));
+            }
 
             createCharts(results, useLand);
             createResultsTable(results, useLand);
 
-            showStatus(`${useLand ? 'Land bottleneck' : 'Baseline'} model completed successfully!`, 'success');
+            const modeStr = useLand ? 'land bottleneck' : 'baseline';
+            const laborStr = hasWorkingAgePop ? ' with endogenous labor' : '';
+            showStatus(`Model (${modeStr}${laborStr}) completed successfully!`, 'success');
         } catch (err) {
             showStatus('Error running model: ' + err.message, 'error');
             console.error(err);
@@ -1554,6 +1656,7 @@
     // Template download
     document.getElementById('downloadTemplate').addEventListener('click', function() {
         const templateCSV = `,2025,2026,2027,2028,2029,2030,2031,2032,2033,2034,2035,2036,2037,2038,2039,2040
+Human Working Age Population,270.7M,273.4M,276.1M,278.9M,281.7M,284.5M,287.3M,290.2M,293.1M,296.0M,299.0M,302.0M,305.0M,308.1M,311.1M,314.3M
 Human Labor Force,168.6M,169.0M,169.3M,169.6M,169.8M,167.3M,167.3M,157.5M,141.6M,141.6M,113.7M,85.3M,56.2M,41.7M,36.0M,33.3M
 AI Cognitive,0.2M,0.9M,3.9M,16.4M,51.8M,191.7M,841.6M,6.0B,50.1B,485.7B,5.5T,11.3T,22.5T,44.5T,87.7T,172.4T
 Robotic Physical,0.6,5.5,49.4,0.4K,4.0K,48.0K,576.0K,8.6M,129.6M,1.9B,17.5B,96.2B,529.3B,2.9T,16.0T,88.1T
