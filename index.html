@@ -293,6 +293,10 @@
             <h3>Factor Income Shares of GWP</h3>
             <canvas id="factorIncomeChart"></canvas>
         </div>
+        <div class="chart-container">
+            <h3>(Implied) Technology Levels</h3>
+            <canvas id="techChart"></canvas>
+        </div>
     </div>
 
     <div id="resultsTable" class="results-table hidden">
@@ -910,6 +914,7 @@
     let capitalChart = null;
     let interestChart = null;
     let factorIncomeChart = null;
+    let techChart = null;
 
     function createCharts(results, useLand = false) {
         const years = results.map(r => r.year);
@@ -934,6 +939,10 @@
         const ai_share = results.map(r => r.ai_share);
         const robot_share = results.map(r => r.robot_share);
 
+        // Implied technology levels (X = L/K, labor services per unit capital)
+        const X_C = results.map(r => r.AI_cog / r.K_C);
+        const X_P = results.map(r => r.R_phys / r.K_R);
+
         // Destroy existing charts
         if (wagesChart) wagesChart.destroy();
         if (muChart) muChart.destroy();
@@ -941,6 +950,7 @@
         if (capitalChart) capitalChart.destroy();
         if (interestChart) interestChart.destroy();
         if (factorIncomeChart) factorIncomeChart.destroy();
+        if (techChart) techChart.destroy();
 
         // Wages and Machine Prices chart
         const wagesCtx = document.getElementById('wagesChart').getContext('2d');
@@ -1355,6 +1365,62 @@
                         },
                         min: 0,
                         max: 1
+                    }
+                }
+            }
+        });
+
+        // (Implied) Technology Levels chart (log scale)
+        const techCtx = document.getElementById('techChart').getContext('2d');
+        techChart = new Chart(techCtx, {
+            type: 'line',
+            data: {
+                labels: years,
+                datasets: [
+                    {
+                        label: 'X_C (Cognitive)',
+                        data: X_C,
+                        borderColor: 'rgb(31, 119, 180)',
+                        backgroundColor: 'rgb(31, 119, 180)',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.1
+                    },
+                    {
+                        label: 'X_P (Physical)',
+                        data: X_P,
+                        borderColor: 'rgb(255, 127, 14)',
+                        backgroundColor: 'rgb(255, 127, 14)',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: '(Implied) Technology levels over time'
+                    },
+                    legend: {
+                        position: 'top'
+                    }
+                },
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Year'
+                        }
+                    },
+                    y: {
+                        type: 'logarithmic',
+                        title: {
+                            display: true,
+                            text: 'Technology level (log scale)'
+                        }
                     }
                 }
             }
