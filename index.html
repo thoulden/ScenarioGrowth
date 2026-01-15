@@ -706,7 +706,8 @@
         const capAlloc = computeCapitalAllocations(K, Y, r, final.qc, final.qr, AIc, Rp, params.alpha);
 
         // Calculate factor income shares
-        const capital_income = r * K;
+        // Capital share in Cobb-Douglas = alpha * Y (not r * K which includes AI/robot capital)
+        const capital_income = params.alpha * Y;
         const human_cog_income = final.wc * final.Hc;
         const human_phys_income = final.wp * final.Hp;
         const ai_income = final.qc * AIc;
@@ -1432,13 +1433,9 @@
             // Prepare land parameters if in land mode
             let landParams = null;
             if (useLand) {
-                // Use first year's Y as reference to compute zeta from target s_L
-                const Y0 = loadedData[0].Y;
-                // M is fixed land supply (normalized to 1 for simplicity)
-                const M = 1.0;
-                // Compute zeta to match target land share s_L in base year
-                // land_share = (1 - zeta) when sigma_L = 1, more complex otherwise
-                // For simplicity, use: zeta = 1 - s_L (Cobb-Douglas approximation)
+                // M = base-year output (normalization so land share = s_L in base year)
+                const M = loadedData[0].Y;
+                // zeta = 1 - s_L so that land share = (1-zeta) = s_L in Cobb-Douglas limit
                 const zeta = 1.0 - params.s_L;
                 landParams = {
                     sigma_L: params.sigma_L,
