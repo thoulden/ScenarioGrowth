@@ -205,6 +205,15 @@
             </label>
         </div>
 
+        <!-- Endogenous Labor Supply Toggle -->
+        <div style="margin-bottom: 15px; padding: 10px; background: #f0fff0; border-radius: 4px; border: 1px solid #c5e5c5;">
+            <label style="display: flex; align-items: center; cursor: pointer;">
+                <input type="checkbox" id="useEndogenousLabor" style="margin-right: 10px; width: 18px; height: 18px;">
+                <span style="font-weight: 600; color: #085008;">Endogenous Labor Supply</span>
+                <small style="margin-left: 10px; color: #666;">(Labor force responds to wages via L = B·w̄^(1/ψ))</small>
+            </label>
+        </div>
+
         <h3 class="param-section-title">Choice Parameters (Elasticities)</h3>
         <div class="params-grid">
             <div class="param-group">
@@ -227,7 +236,7 @@
                 <input type="number" id="omega" value="0.1" step="0.1" min="0">
                 <small>L_c/L_p = κ · (w_c/w_p)^ω</small>
             </div>
-            <div class="param-group">
+            <div class="param-group hidden" id="psiParam">
                 <label for="psi">ψ (labor supply elasticity)</label>
                 <input type="number" id="psi" value="1.0" step="0.1" min="0.01">
                 <small>L = B · w̄^(1/ψ)</small>
@@ -328,6 +337,11 @@
     // Check if land mode is enabled
     function isLandMode() {
         return document.getElementById('useLand').checked;
+    }
+
+    // Check if endogenous labor supply is enabled
+    function isEndogenousLaborMode() {
+        return document.getElementById('useEndogenousLabor').checked;
     }
 
     // Get parameters from inputs
@@ -995,7 +1009,7 @@
     let techChart = null;
     let laborChart = null;
 
-    function createCharts(results, useLand = false) {
+    function createCharts(results, useLand = false, showLaborChart = false) {
         const years = results.map(r => r.year);
         const wc = results.map(r => r.wc);
         const wp = results.map(r => r.wp);
@@ -1517,73 +1531,79 @@
         });
 
         // Labor Force and Working Age Population chart
-        // Only show if we have Working Age Pop data
-        const laborCtx = document.getElementById('laborChart').getContext('2d');
-        const laborDatasets = [
-            {
-                label: 'Working Age Population',
-                data: workingAgePop,
-                borderColor: 'rgb(150, 150, 150)',
-                backgroundColor: 'rgb(150, 150, 150)',
-                borderWidth: 2,
-                fill: false,
-                tension: 0.1
-            },
-            {
-                label: 'Implied Labor Force',
-                data: L_endogenous,
-                borderColor: 'rgb(31, 119, 180)',
-                backgroundColor: 'rgb(31, 119, 180)',
-                borderWidth: 2,
-                fill: false,
-                tension: 0.1
-            },
-            {
-                label: 'Labor Force (Data)',
-                data: H_data,
-                borderColor: 'rgb(255, 127, 14)',
-                backgroundColor: 'rgb(255, 127, 14)',
-                borderWidth: 2,
-                borderDash: [5, 5],
-                fill: false,
-                tension: 0.1
-            }
-        ];
-
-        laborChart = new Chart(laborCtx, {
-            type: 'line',
-            data: {
-                labels: years,
-                datasets: laborDatasets
-            },
-            options: {
-                responsive: true,
-                plugins: {
-                    title: {
-                        display: true,
-                        text: 'Labor force and working age population over time'
-                    },
-                    legend: {
-                        position: 'top'
-                    }
+        // Only show if endogenous labor supply is enabled
+        const laborChartContainer = document.getElementById('laborChart').closest('.chart-container');
+        if (showLaborChart) {
+            laborChartContainer.style.display = '';
+            const laborCtx = document.getElementById('laborChart').getContext('2d');
+            const laborDatasets = [
+                {
+                    label: 'Working Age Population',
+                    data: workingAgePop,
+                    borderColor: 'rgb(150, 150, 150)',
+                    backgroundColor: 'rgb(150, 150, 150)',
+                    borderWidth: 2,
+                    fill: false,
+                    tension: 0.1
                 },
-                scales: {
-                    x: {
+                {
+                    label: 'Implied Labor Force',
+                    data: L_endogenous,
+                    borderColor: 'rgb(31, 119, 180)',
+                    backgroundColor: 'rgb(31, 119, 180)',
+                    borderWidth: 2,
+                    fill: false,
+                    tension: 0.1
+                },
+                {
+                    label: 'Labor Force (Data)',
+                    data: H_data,
+                    borderColor: 'rgb(255, 127, 14)',
+                    backgroundColor: 'rgb(255, 127, 14)',
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    fill: false,
+                    tension: 0.1
+                }
+            ];
+
+            laborChart = new Chart(laborCtx, {
+                type: 'line',
+                data: {
+                    labels: years,
+                    datasets: laborDatasets
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
                         title: {
                             display: true,
-                            text: 'Year'
+                            text: 'Labor force and working age population over time'
+                        },
+                        legend: {
+                            position: 'top'
                         }
                     },
-                    y: {
-                        title: {
-                            display: true,
-                            text: 'Population'
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Year'
+                            }
                         },
-                        beginAtZero: true
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Population'
+                            },
+                            beginAtZero: true
+                        }
                     }
                 }
-            }
-        });
+            });
+        } else {
+            laborChartContainer.style.display = 'none';
+        }
     }
 
     function createResultsTable(results, useLand = false) {
@@ -1683,11 +1703,19 @@
                 };
             }
 
-            // Check if we have Working Age Population data for endogenous labor supply
+            // Check if endogenous labor supply is enabled and we have the data
+            const useEndogenousLabor = isEndogenousLaborMode();
             const hasWorkingAgePop = loadedData[0].WorkingAgePop !== null;
 
+            // Warn if endogenous labor is enabled but no Working Age Pop data
+            if (useEndogenousLabor && !hasWorkingAgePop) {
+                showStatus('Warning: Endogenous Labor Supply requires Working Age Population data in CSV. Using exogenous labor instead.', 'error');
+            }
+
+            const doEndogenousLabor = useEndogenousLabor && hasWorkingAgePop;
+
             let results;
-            if (hasWorkingAgePop) {
+            if (doEndogenousLabor) {
                 // Endogenous labor supply mode
                 // Step 1: Solve base year with exogenous L to calibrate B
                 const baseRow = loadedData[0];
@@ -1715,11 +1743,11 @@
                 }));
             }
 
-            createCharts(results, useLand);
+            createCharts(results, useLand, doEndogenousLabor);
             createResultsTable(results, useLand);
 
             const modeStr = useLand ? 'land bottleneck' : 'baseline';
-            const laborStr = hasWorkingAgePop ? ' with endogenous labor' : '';
+            const laborStr = doEndogenousLabor ? ' with endogenous labor' : '';
             showStatus(`Model (${modeStr}${laborStr}) completed successfully!`, 'success');
         } catch (err) {
             showStatus('Error running model: ' + err.message, 'error');
@@ -1731,6 +1759,12 @@
     document.getElementById('useLand').addEventListener('change', function() {
         const useLand = this.checked;
         document.getElementById('landParams').classList.toggle('hidden', !useLand);
+    });
+
+    // Toggle endogenous labor parameter (psi) visibility
+    document.getElementById('useEndogenousLabor').addEventListener('change', function() {
+        const useEndogenousLabor = this.checked;
+        document.getElementById('psiParam').classList.toggle('hidden', !useEndogenousLabor);
     });
 
     // Template download
