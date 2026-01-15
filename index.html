@@ -940,8 +940,13 @@
         const robot_share = results.map(r => r.robot_share);
 
         // Implied technology levels (X = L/K, labor services per unit capital)
-        const X_C = results.map(r => r.AI_cog / r.K_C);
-        const X_P = results.map(r => r.R_phys / r.K_R);
+        // Normalize relative to base year
+        const X_C_raw = results.map(r => r.AI_cog / r.K_C);
+        const X_P_raw = results.map(r => r.R_phys / r.K_R);
+        const X_C_0 = X_C_raw[0];
+        const X_P_0 = X_P_raw[0];
+        const X_C = X_C_raw.map(x => x / X_C_0);
+        const X_P = X_P_raw.map(x => x / X_P_0);
 
         // Destroy existing charts
         if (wagesChart) wagesChart.destroy();
@@ -1419,7 +1424,7 @@
                         type: 'logarithmic',
                         title: {
                             display: true,
-                            text: 'Technology level (log scale)'
+                            text: 'Relative Tech Levels'
                         }
                     }
                 }
