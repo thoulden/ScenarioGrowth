@@ -709,20 +709,24 @@
         const capAlloc = computeCapitalAllocations(K, Y, r, final.qc, final.qr, AIc, Rp, params.alpha);
 
         // Calculate factor income shares
-        // Capital share in Cobb-Douglas = alpha * Y (not r * K which includes AI/robot capital)
-        const capital_income = params.alpha * Y;
+        // In land mode, Y_final is the true output; in baseline mode, Y_final = Y
+        // Capital income = alpha * PY * Y (PY scales Y_hat payments to Y_final units)
+        // Labor incomes (wc, wp, qc, qr) are already scaled by PY in pricesGivenMuAndZ
+        const capital_income = params.alpha * PY * Y;
         const human_cog_income = final.wc * final.Hc;
         const human_phys_income = final.wp * final.Hp;
         const ai_income = final.qc * AIc;
         const robot_income = final.qr * Rp;
-        let total_income = capital_income + human_cog_income + human_phys_income + ai_income + robot_income;
 
-        // Add land income if in land mode
+        // Land income (only in land mode)
         let land_income = 0;
         if (landParams) {
             land_income = v * landParams.M;
-            total_income += land_income;
         }
+
+        // Total income should equal Y_final (the true final output)
+        // Use Y_final as denominator for shares
+        const total_income = Y_final;
 
         const result = {
             ...final,
