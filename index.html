@@ -939,9 +939,9 @@
         const ai_share = results.map(r => r.ai_share);
         const robot_share = results.map(r => r.robot_share);
 
-        // Implied technology levels (X = 1/q, higher tech = lower price)
-        const X_C = results.map(r => 1.0 / r.qc);
-        const X_P = results.map(r => 1.0 / r.qr);
+        // Implied technology levels (X = L/K, labor services per unit capital)
+        const X_C = results.map(r => r.AI_cog / r.K_C);
+        const X_P = results.map(r => r.R_phys / r.K_R);
 
         // Destroy existing charts
         if (wagesChart) wagesChart.destroy();
