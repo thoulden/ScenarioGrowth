@@ -342,7 +342,9 @@
     // ========================================
 
     // Y_final from Y_hat (CES combination of Y_hat and land M)
-    // zeta = land share parameter (weight on land M)
+    // Y_final = [zeta * M^rho + (1-zeta) * Yhat^rho]^(1/rho)
+    // where rho = (sigma_L - 1) / sigma_L
+    // With M = Y_0 (base year output), land share in base year = zeta = s_L
     function Y_final_from_Yhat(Yhat, M, zeta, sigma_L) {
         Yhat = Math.max(Yhat, TINY);
         M = Math.max(M, TINY);
@@ -354,12 +356,14 @@
         }
 
         const rho = (sigma_L - 1.0) / sigma_L;
-        const term1 = Math.pow(zeta, 1.0 / sigma_L) * Math.pow(M, rho);
-        const term2 = Math.pow(1.0 - zeta, 1.0 / sigma_L) * Math.pow(Yhat, rho);
+        const term1 = zeta * Math.pow(M, rho);
+        const term2 = (1.0 - zeta) * Math.pow(Yhat, rho);
         return Math.pow(term1 + term2, 1.0 / rho);
     }
 
     // Shadow price of Y_hat (P_Y = dY_final/dYhat)
+    // For Y = [zeta * M^rho + (1-zeta) * Yhat^rho]^(1/rho):
+    // dY/dYhat = Y^(1-rho) * (1-zeta) * Yhat^(rho-1)
     function P_Y_shadow(Yfinal, Yhat, zeta, sigma_L) {
         Yfinal = Math.max(Yfinal, TINY);
         Yhat = Math.max(Yhat, TINY);
@@ -371,10 +375,12 @@
         }
 
         const rho = (sigma_L - 1.0) / sigma_L;
-        return Math.pow(Yfinal, 1.0 - rho) * Math.pow(1.0 - zeta, 1.0 / sigma_L) * Math.pow(Yhat, rho - 1.0);
+        return Math.pow(Yfinal, 1.0 - rho) * (1.0 - zeta) * Math.pow(Yhat, rho - 1.0);
     }
 
     // Land rent (v = dY_final/dM)
+    // For Y = [zeta * M^rho + (1-zeta) * Yhat^rho]^(1/rho):
+    // dY/dM = Y^(1-rho) * zeta * M^(rho-1)
     function v_land(Yfinal, M, zeta, sigma_L) {
         Yfinal = Math.max(Yfinal, TINY);
         M = Math.max(M, TINY);
@@ -386,7 +392,7 @@
         }
 
         const rho = (sigma_L - 1.0) / sigma_L;
-        return Math.pow(Yfinal, 1.0 - rho) * Math.pow(zeta, 1.0 / sigma_L) * Math.pow(M, rho - 1.0);
+        return Math.pow(Yfinal, 1.0 - rho) * zeta * Math.pow(M, rho - 1.0);
     }
 
     // Land income share
