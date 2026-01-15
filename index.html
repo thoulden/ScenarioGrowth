@@ -302,6 +302,10 @@
             <h3>(Implied) Technology Levels</h3>
             <canvas id="techChart"></canvas>
         </div>
+        <div class="chart-container">
+            <h3>Labor Force and Working Age Population</h3>
+            <canvas id="laborChart"></canvas>
+        </div>
     </div>
 
     <div id="resultsTable" class="results-table hidden">
@@ -989,6 +993,7 @@
     let interestChart = null;
     let factorIncomeChart = null;
     let techChart = null;
+    let laborChart = null;
 
     function createCharts(results, useLand = false) {
         const years = results.map(r => r.year);
@@ -1022,6 +1027,11 @@
         const X_C = X_C_raw.map(x => x / X_C_0);
         const X_P = X_P_raw.map(x => x / X_P_0);
 
+        // Labor force data (for endogenous labor chart)
+        const workingAgePop = results.map(r => r.WorkingAgePop);
+        const L_endogenous = results.map(r => r.L_endogenous || r.H_cog);  // Fall back to H_cog if no endogenous L
+        const H_data = results.map(r => r.H_data);
+
         // Destroy existing charts
         if (wagesChart) wagesChart.destroy();
         if (muChart) muChart.destroy();
@@ -1030,6 +1040,7 @@
         if (interestChart) interestChart.destroy();
         if (factorIncomeChart) factorIncomeChart.destroy();
         if (techChart) techChart.destroy();
+        if (laborChart) laborChart.destroy();
 
         // Wages and Machine Prices chart
         const wagesCtx = document.getElementById('wagesChart').getContext('2d');
@@ -1500,6 +1511,75 @@
                             display: true,
                             text: 'Relative Tech Levels'
                         }
+                    }
+                }
+            }
+        });
+
+        // Labor Force and Working Age Population chart
+        // Only show if we have Working Age Pop data
+        const laborCtx = document.getElementById('laborChart').getContext('2d');
+        const laborDatasets = [
+            {
+                label: 'Working Age Population',
+                data: workingAgePop,
+                borderColor: 'rgb(150, 150, 150)',
+                backgroundColor: 'rgb(150, 150, 150)',
+                borderWidth: 2,
+                fill: false,
+                tension: 0.1
+            },
+            {
+                label: 'Implied Labor Force',
+                data: L_endogenous,
+                borderColor: 'rgb(31, 119, 180)',
+                backgroundColor: 'rgb(31, 119, 180)',
+                borderWidth: 2,
+                fill: false,
+                tension: 0.1
+            },
+            {
+                label: 'Labor Force (Data)',
+                data: H_data,
+                borderColor: 'rgb(255, 127, 14)',
+                backgroundColor: 'rgb(255, 127, 14)',
+                borderWidth: 2,
+                borderDash: [5, 5],
+                fill: false,
+                tension: 0.1
+            }
+        ];
+
+        laborChart = new Chart(laborCtx, {
+            type: 'line',
+            data: {
+                labels: years,
+                datasets: laborDatasets
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Labor force and working age population over time'
+                    },
+                    legend: {
+                        position: 'top'
+                    }
+                },
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Year'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Population'
+                        },
+                        beginAtZero: true
                     }
                 }
             }
