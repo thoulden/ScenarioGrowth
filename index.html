@@ -342,48 +342,51 @@
     // ========================================
 
     // Y_final from Y_hat (CES combination of Y_hat and land M)
+    // zeta = land share parameter (weight on land M)
     function Y_final_from_Yhat(Yhat, M, zeta, sigma_L) {
         Yhat = Math.max(Yhat, TINY);
         M = Math.max(M, TINY);
         zeta = Math.max(TINY, Math.min(zeta, 1.0 - TINY));
 
         if (Math.abs(sigma_L - 1.0) < 1e-10) {
-            // Cobb-Douglas limit
-            return Math.pow(Yhat, zeta) * Math.pow(M, 1.0 - zeta);
+            // Cobb-Douglas limit: Y = M^zeta * Yhat^(1-zeta)
+            return Math.pow(M, zeta) * Math.pow(Yhat, 1.0 - zeta);
         }
 
         const rho = (sigma_L - 1.0) / sigma_L;
-        const term1 = Math.pow(zeta, 1.0 / sigma_L) * Math.pow(Yhat, rho);
-        const term2 = Math.pow(1.0 - zeta, 1.0 / sigma_L) * Math.pow(M, rho);
+        const term1 = Math.pow(zeta, 1.0 / sigma_L) * Math.pow(M, rho);
+        const term2 = Math.pow(1.0 - zeta, 1.0 / sigma_L) * Math.pow(Yhat, rho);
         return Math.pow(term1 + term2, 1.0 / rho);
     }
 
-    // Shadow price of final output (P_Y) in terms of Y_hat numeraire
+    // Shadow price of Y_hat (P_Y = dY_final/dYhat)
     function P_Y_shadow(Yfinal, Yhat, zeta, sigma_L) {
         Yfinal = Math.max(Yfinal, TINY);
         Yhat = Math.max(Yhat, TINY);
         zeta = Math.max(TINY, Math.min(zeta, 1.0 - TINY));
 
         if (Math.abs(sigma_L - 1.0) < 1e-10) {
-            return zeta * Yfinal / Yhat;
+            // Cobb-Douglas: PY = (1-zeta) * Y_final / Yhat
+            return (1.0 - zeta) * Yfinal / Yhat;
         }
 
         const rho = (sigma_L - 1.0) / sigma_L;
-        return Math.pow(Yfinal, 1.0 - rho) * Math.pow(zeta, 1.0 / sigma_L) * Math.pow(Yhat, rho - 1.0);
+        return Math.pow(Yfinal, 1.0 - rho) * Math.pow(1.0 - zeta, 1.0 / sigma_L) * Math.pow(Yhat, rho - 1.0);
     }
 
-    // Land rent (v) - marginal product of land
+    // Land rent (v = dY_final/dM)
     function v_land(Yfinal, M, zeta, sigma_L) {
         Yfinal = Math.max(Yfinal, TINY);
         M = Math.max(M, TINY);
         zeta = Math.max(TINY, Math.min(zeta, 1.0 - TINY));
 
         if (Math.abs(sigma_L - 1.0) < 1e-10) {
-            return (1.0 - zeta) * Yfinal / M;
+            // Cobb-Douglas: v = zeta * Y_final / M
+            return zeta * Yfinal / M;
         }
 
         const rho = (sigma_L - 1.0) / sigma_L;
-        return Math.pow(Yfinal, 1.0 - rho) * Math.pow(1.0 - zeta, 1.0 / sigma_L) * Math.pow(M, rho - 1.0);
+        return Math.pow(Yfinal, 1.0 - rho) * Math.pow(zeta, 1.0 / sigma_L) * Math.pow(M, rho - 1.0);
     }
 
     // Land income share
@@ -1435,8 +1438,8 @@
             if (useLand) {
                 // M = base-year output (normalization so land share = s_L in base year)
                 const M = loadedData[0].Y;
-                // zeta = 1 - s_L so that land share = (1-zeta) = s_L in Cobb-Douglas limit
-                const zeta = 1.0 - params.s_L;
+                // zeta = s_L (land share parameter = weight on land in CES)
+                const zeta = params.s_L;
                 landParams = {
                     sigma_L: params.sigma_L,
                     s_L: params.s_L,
