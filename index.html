@@ -365,6 +365,10 @@
             <h3>Labor Force and Working Age Population</h3>
             <canvas id="laborChart"></canvas>
         </div>
+        <div class="chart-container" id="consumptionChartContainer" style="display: none;">
+            <h3>Household Income per Worker</h3>
+            <canvas id="consumptionChart"></canvas>
+        </div>
     </div>
 
     <div id="resultsTable" class="results-table hidden">
@@ -910,6 +914,20 @@
             land_income = v * landParams.M;
         }
 
+        // Calculate tax transfers (for taxation mode)
+        // T = τ_k × r × K_Y + τ_AI × q_c × L_AI + τ_R × q_p × L_R
+        const { tau_k, tau_AI, tau_R } = params;
+        const T_capital = tau_k * r * capAlloc.K_Y;
+        const T_AI = tau_AI * final.qc * AIc;
+        const T_robot = tau_R * final.qr * Rp;
+        const T_total = T_capital + T_AI + T_robot;
+
+        // Per-worker values (divide by L)
+        const wage_per_worker = (human_cog_income + human_phys_income) / L;
+        const T_capital_per_worker = T_capital / L;
+        const T_AI_per_worker = T_AI / L;
+        const T_robot_per_worker = T_robot / L;
+
         // Total income should equal Y_final (the true final output)
         // Use Y_final as denominator for shares
         const total_income = Y_final;
@@ -931,7 +949,13 @@
             human_cog_share: human_cog_income / total_income,
             human_phys_share: human_phys_income / total_income,
             ai_share: ai_income / total_income,
-            robot_share: robot_income / total_income
+            robot_share: robot_income / total_income,
+            // Tax transfers (per worker)
+            wage_per_worker,
+            T_capital_per_worker,
+            T_AI_per_worker,
+            T_robot_per_worker,
+            T_total_per_worker: T_capital_per_worker + T_AI_per_worker + T_robot_per_worker
         };
 
         // Add land-specific outputs if in land mode
@@ -1096,8 +1120,9 @@
     let factorIncomeChart = null;
     let techChart = null;
     let laborChart = null;
+    let consumptionChart = null;
 
-    function createCharts(results, useLand = false, showLaborChart = false) {
+    function createCharts(results, useLand = false, showLaborChart = false, showConsumptionChart = false) {
         const years = results.map(r => r.year);
         const wc = results.map(r => r.wc);
         const wp = results.map(r => r.wp);
@@ -1143,6 +1168,7 @@
         if (factorIncomeChart) factorIncomeChart.destroy();
         if (techChart) techChart.destroy();
         if (laborChart) laborChart.destroy();
+        if (consumptionChart) consumptionChart.destroy();
 
         // Wages and Machine Prices chart
         const wagesCtx = document.getElementById('wagesChart').getContext('2d');
@@ -1692,6 +1718,94 @@
         } else {
             laborChartContainer.style.display = 'none';
         }
+
+        // Household Income per Worker chart (stacked area - shown when taxation is enabled)
+        const consumptionChartContainer = document.getElementById('consumptionChartContainer');
+        if (showConsumptionChart) {
+            consumptionChartContainer.style.display = '';
+
+            // Extract per-worker data
+            const wage_per_worker = results.map(r => r.wage_per_worker || 0);
+            const T_capital_per_worker = results.map(r => r.T_capital_per_worker || 0);
+            const T_AI_per_worker = results.map(r => r.T_AI_per_worker || 0);
+            const T_robot_per_worker = results.map(r => r.T_robot_per_worker || 0);
+
+            const consumptionCtx = document.getElementById('consumptionChart').getContext('2d');
+            consumptionChart = new Chart(consumptionCtx, {
+                type: 'line',
+                data: {
+                    labels: years,
+                    datasets: [
+                        {
+                            label: 'Wage Income',
+                            data: wage_per_worker,
+                            borderColor: 'rgb(31, 119, 180)',
+                            backgroundColor: 'rgba(31, 119, 180, 0.8)',
+                            borderWidth: 1,
+                            fill: true,
+                            tension: 0.1
+                        },
+                        {
+                            label: 'Transfer (Capital Tax)',
+                            data: T_capital_per_worker,
+                            borderColor: 'rgb(150, 150, 150)',
+                            backgroundColor: 'rgba(150, 150, 150, 0.8)',
+                            borderWidth: 1,
+                            fill: true,
+                            tension: 0.1
+                        },
+                        {
+                            label: 'Transfer (AI Tax)',
+                            data: T_AI_per_worker,
+                            borderColor: 'rgb(148, 103, 189)',
+                            backgroundColor: 'rgba(148, 103, 189, 0.8)',
+                            borderWidth: 1,
+                            fill: true,
+                            tension: 0.1
+                        },
+                        {
+                            label: 'Transfer (Robot Tax)',
+                            data: T_robot_per_worker,
+                            borderColor: 'rgb(255, 127, 14)',
+                            backgroundColor: 'rgba(255, 127, 14, 0.8)',
+                            borderWidth: 1,
+                            fill: true,
+                            tension: 0.1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Household income per worker over time'
+                        },
+                        legend: {
+                            position: 'bottom'
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Year'
+                            }
+                        },
+                        y: {
+                            stacked: true,
+                            title: {
+                                display: true,
+                                text: 'Income per Worker'
+                            },
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        } else {
+            consumptionChartContainer.style.display = 'none';
+        }
     }
 
     function createResultsTable(results, useLand = false) {
@@ -1831,12 +1945,13 @@
                 }));
             }
 
-            createCharts(results, useLand, doEndogenousLabor);
+            const useTaxation = isTaxationMode();
+            createCharts(results, useLand, doEndogenousLabor, useTaxation);
             createResultsTable(results, useLand);
 
             const modeStr = useLand ? 'land bottleneck' : 'baseline';
             const laborStr = doEndogenousLabor ? ' with endogenous labor' : '';
-            const taxStr = isTaxationMode() ? ' with taxation' : '';
+            const taxStr = useTaxation ? ' with taxation' : '';
             showStatus(`Model (${modeStr}${laborStr}${taxStr}) completed successfully!`, 'success');
         } catch (err) {
             showStatus('Error running model: ' + err.message, 'error');
