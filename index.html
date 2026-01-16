@@ -214,6 +214,15 @@
             </label>
         </div>
 
+        <!-- Taxation Toggle -->
+        <div style="margin-bottom: 15px; padding: 10px; background: #fff5f0; border-radius: 4px; border: 1px solid #e5c5c5;">
+            <label style="display: flex; align-items: center; cursor: pointer;">
+                <input type="checkbox" id="useTaxation" style="margin-right: 10px; width: 18px; height: 18px;">
+                <span style="font-weight: 600; color: #850008;">Taxation</span>
+                <small style="margin-left: 10px; color: #666;">(Tax capital income, AI services, and robot services)</small>
+            </label>
+        </div>
+
         <h3 class="param-section-title">Choice Parameters (Elasticities)</h3>
         <div class="params-grid">
             <div class="param-group">
@@ -279,6 +288,47 @@
             </div>
         </div>
 
+        <h3 class="param-section-title">Depreciation Rates</h3>
+        <div class="params-grid">
+            <div class="param-group">
+                <label for="delta_K">δ_K (output capital)</label>
+                <input type="number" id="delta_K" value="0.10" step="0.01" min="0" max="1">
+                <small>Depreciation of K_Y</small>
+            </div>
+            <div class="param-group">
+                <label for="delta_C">δ_C (AI capital)</label>
+                <input type="number" id="delta_C" value="0.10" step="0.01" min="0" max="1">
+                <small>Depreciation of K_C</small>
+            </div>
+            <div class="param-group">
+                <label for="delta_R">δ_R (robot capital)</label>
+                <input type="number" id="delta_R" value="0.10" step="0.01" min="0" max="1">
+                <small>Depreciation of K_R</small>
+            </div>
+        </div>
+
+        <!-- Tax parameters (hidden by default) -->
+        <div id="taxParams" class="hidden">
+            <h3 class="param-section-title">Tax Rates</h3>
+            <div class="params-grid">
+                <div class="param-group">
+                    <label for="tau_k">τ_k (capital income)</label>
+                    <input type="number" id="tau_k" value="0" step="0.01" min="0" max="0.99">
+                    <small>Tax on K_Y rental income</small>
+                </div>
+                <div class="param-group">
+                    <label for="tau_AI">τ_AI (AI services)</label>
+                    <input type="number" id="tau_AI" value="0" step="0.01" min="0" max="0.99">
+                    <small>Tax on AI service revenue</small>
+                </div>
+                <div class="param-group">
+                    <label for="tau_R">τ_R (robot services)</label>
+                    <input type="number" id="tau_R" value="0" step="0.01" min="0" max="0.99">
+                    <small>Tax on robot service revenue</small>
+                </div>
+            </div>
+        </div>
+
         <button id="runModel" disabled>Run Model</button>
     </div>
 
@@ -329,11 +379,6 @@
 
     const TINY = 1e-12;
 
-    // Depreciation rates (matching Python code)
-    const delta_K = 0.10;
-    const delta_C = 0.10;
-    const delta_R = 0.10;
-
     // Check if land mode is enabled
     function isLandMode() {
         return document.getElementById('useLand').checked;
@@ -342,6 +387,11 @@
     // Check if endogenous labor supply is enabled
     function isEndogenousLaborMode() {
         return document.getElementById('useEndogenousLabor').checked;
+    }
+
+    // Check if taxation is enabled
+    function isTaxationMode() {
+        return document.getElementById('useTaxation').checked;
     }
 
     // Get parameters from inputs
@@ -354,12 +404,27 @@
             kappa: parseFloat(document.getElementById('kappa').value),
             omega: parseFloat(document.getElementById('omega').value),
             theta: parseFloat(document.getElementById('theta').value),
-            psi: parseFloat(document.getElementById('psi').value)
+            psi: parseFloat(document.getElementById('psi').value),
+            // Depreciation rates
+            delta_K: parseFloat(document.getElementById('delta_K').value),
+            delta_C: parseFloat(document.getElementById('delta_C').value),
+            delta_R: parseFloat(document.getElementById('delta_R').value)
         };
 
         if (isLandMode()) {
             params.sigma_L = parseFloat(document.getElementById('sigma_L').value);
             params.s_L = parseFloat(document.getElementById('s_L').value);
+        }
+
+        if (isTaxationMode()) {
+            params.tau_k = parseFloat(document.getElementById('tau_k').value);
+            params.tau_AI = parseFloat(document.getElementById('tau_AI').value);
+            params.tau_R = parseFloat(document.getElementById('tau_R').value);
+        } else {
+            // Default to zero taxes
+            params.tau_k = 0;
+            params.tau_AI = 0;
+            params.tau_R = 0;
         }
 
         return params;
@@ -573,19 +638,31 @@
     }
 
     // Solve for interest rate from capital market clearing
-    // K = alpha*Y/r + LAI*q_c/(r - delta_K + delta_C) + LR*q_p/(r - delta_K + delta_R)
-    function solveROneT(Kt, Yt, q_c, q_p, LAI, LR, alpha) {
-        const r_min = Math.max(1e-8, delta_K - delta_C + 1e-8, delta_K - delta_R + 1e-8);
+    // With taxes: K = alpha*Y/r + (1-τ_AI)*q_c*LAI/[(1-τ_k)*r - δ_K + δ_C] + (1-τ_R)*q_p*LR/[(1-τ_k)*r - δ_K + δ_R]
+    function solveROneT(Kt, Yt, q_c, q_p, LAI, LR, params) {
+        const { alpha, delta_K, delta_C, delta_R, tau_k, tau_AI, tau_R } = params;
+        const one_minus_tau_k = 1.0 - tau_k;
+
+        // Minimum r to keep denominators positive
+        const r_min_C = (delta_K - delta_C) / one_minus_tau_k + 1e-8;
+        const r_min_R = (delta_K - delta_R) / one_minus_tau_k + 1e-8;
+        const r_min = Math.max(1e-8, r_min_C, r_min_R);
 
         function RHS(r) {
             const termY = alpha * Yt / r;
             let termC = 0.0;
             if (LAI > 0 && isFinite(q_c)) {
-                termC = LAI * q_c / (r - delta_K + delta_C);
+                const denom_C = one_minus_tau_k * r - delta_K + delta_C;
+                if (denom_C > TINY) {
+                    termC = (1.0 - tau_AI) * q_c * LAI / denom_C;
+                }
             }
             let termR = 0.0;
             if (LR > 0 && isFinite(q_p)) {
-                termR = LR * q_p / (r - delta_K + delta_R);
+                const denom_R = one_minus_tau_k * r - delta_K + delta_R;
+                if (denom_R > TINY) {
+                    termR = (1.0 - tau_R) * q_p * LR / denom_R;
+                }
             }
             return termY + termC + termR;
         }
@@ -629,15 +706,26 @@
     }
 
     // Compute capital allocations given r
-    function computeCapitalAllocations(Kt, Yt, r, q_c, q_p, LAI, LR, alpha) {
+    // With taxes: K_C = (1-τ_AI) × q_c × LAI / [(1-τ_k)r - δ_K + δ_C]
+    //             K_R = (1-τ_R) × q_p × LR / [(1-τ_k)r - δ_K + δ_R]
+    function computeCapitalAllocations(Kt, Yt, r, q_c, q_p, LAI, LR, params) {
+        const { alpha, delta_K, delta_C, delta_R, tau_k, tau_AI, tau_R } = params;
+        const one_minus_tau_k = 1.0 - tau_k;
+
         const K_Y = alpha * Yt / r;
         let K_C = 0.0;
         if (LAI > 0 && isFinite(q_c)) {
-            K_C = LAI * q_c / (r - delta_K + delta_C);
+            const denom_C = one_minus_tau_k * r - delta_K + delta_C;
+            if (denom_C > TINY) {
+                K_C = (1.0 - tau_AI) * q_c * LAI / denom_C;
+            }
         }
         let K_R = 0.0;
         if (LR > 0 && isFinite(q_p)) {
-            K_R = LR * q_p / (r - delta_K + delta_R);
+            const denom_R = one_minus_tau_k * r - delta_K + delta_R;
+            if (denom_R > TINY) {
+                K_R = (1.0 - tau_R) * q_p * LR / denom_R;
+            }
         }
         return {
             K_Y,
@@ -801,10 +889,10 @@
         const final = solveZForMu(Y, K, L, AIc, Rp, mu_c_cur, mu_p_cur, params, 1.0, 0.6, 200, 1e-10, PY);
 
         // Solve for interest rate from capital market clearing
-        const r = solveROneT(K, Y, final.qc, final.qr, AIc, Rp, params.alpha);
+        const r = solveROneT(K, Y, final.qc, final.qr, AIc, Rp, params);
 
         // Compute capital allocations
-        const capAlloc = computeCapitalAllocations(K, Y, r, final.qc, final.qr, AIc, Rp, params.alpha);
+        const capAlloc = computeCapitalAllocations(K, Y, r, final.qc, final.qr, AIc, Rp, params);
 
         // Calculate factor income shares
         // In land mode, Y_final is the true output; in baseline mode, Y_final = Y
@@ -1748,7 +1836,8 @@
 
             const modeStr = useLand ? 'land bottleneck' : 'baseline';
             const laborStr = doEndogenousLabor ? ' with endogenous labor' : '';
-            showStatus(`Model (${modeStr}${laborStr}) completed successfully!`, 'success');
+            const taxStr = isTaxationMode() ? ' with taxation' : '';
+            showStatus(`Model (${modeStr}${laborStr}${taxStr}) completed successfully!`, 'success');
         } catch (err) {
             showStatus('Error running model: ' + err.message, 'error');
             console.error(err);
@@ -1765,6 +1854,12 @@
     document.getElementById('useEndogenousLabor').addEventListener('change', function() {
         const useEndogenousLabor = this.checked;
         document.getElementById('psiParam').classList.toggle('hidden', !useEndogenousLabor);
+    });
+
+    // Toggle tax parameters visibility
+    document.getElementById('useTaxation').addEventListener('change', function() {
+        const useTaxation = this.checked;
+        document.getElementById('taxParams').classList.toggle('hidden', !useTaxation);
     });
 
     // Template download
