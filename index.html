@@ -2001,6 +2001,14 @@
         const Y_forecast = results.map(r => r.Y_forecast || r.Y);
         const Y_predicted = results.map(r => r.Y_predicted || r.Y);
 
+        // GATE GWP data (2025-2040)
+        const GATE_GWP = [
+            1.31e14, 1.28e14, 1.57e14, 2.02e14, 2.59e14, 3.36e14, 4.45e14, 6.17e14,
+            9.07e14, 1.43e15, 2.51e15, 5.19e15, 1.4e16, 5.6e16, 2.89e17, 1.45e18
+        ];
+        // Slice to match the number of years in results
+        const GATE_GWP_data = GATE_GWP.slice(0, years.length);
+
         const outputCtx = document.getElementById('outputChart').getContext('2d');
         outputChart = new Chart(outputCtx, {
             type: 'line',
@@ -2023,6 +2031,16 @@
                         borderColor: 'rgb(31, 119, 180)',
                         backgroundColor: 'rgb(31, 119, 180)',
                         borderWidth: 2,
+                        fill: false,
+                        tension: 0.1
+                    },
+                    {
+                        label: 'GATE GWP',
+                        data: GATE_GWP_data,
+                        borderColor: 'rgb(44, 160, 44)',
+                        backgroundColor: 'rgb(44, 160, 44)',
+                        borderWidth: 2,
+                        borderDash: [10, 5],
                         fill: false,
                         tension: 0.1
                     }
