@@ -326,9 +326,9 @@
                     <small>Fraction of output saved</small>
                 </div>
                 <div class="param-group">
-                    <label for="initial_YK_ratio">Y/K ratio (base year)</label>
-                    <input type="number" id="initial_YK_ratio" value="3.71" step="0.01" min="0.1">
-                    <small>Output-to-capital ratio for K₀</small>
+                    <label for="initial_KY_ratio">K/Y ratio (base year)</label>
+                    <input type="number" id="initial_KY_ratio" value="3.71" step="0.01" min="0.1">
+                    <small>Capital-to-output ratio: K₀ = (K/Y) × Y₀</small>
                 </div>
             </div>
         </div>
@@ -468,7 +468,7 @@
 
         if (isPredictedOutputMode()) {
             params.savings_rate = parseFloat(document.getElementById('savings_rate').value);
-            params.initial_YK_ratio = parseFloat(document.getElementById('initial_YK_ratio').value);
+            params.initial_KY_ratio = parseFloat(document.getElementById('initial_KY_ratio').value);
         }
 
         return params;
@@ -2176,7 +2176,7 @@
                 const baseRow = loadedData[0];
 
                 // Base year: K_0 = Y_0 / (Y/K ratio)
-                const K_0 = baseRow.Y / params.initial_YK_ratio;
+                const K_0 = params.initial_KY_ratio * baseRow.Y;
                 const baseRowWithK = { ...baseRow, K: K_0 };
 
                 // Solve base year to calibrate TFP (A) and labor supply (B)
