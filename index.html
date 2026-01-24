@@ -369,6 +369,10 @@
             <h3>Household Income per Worker</h3>
             <canvas id="consumptionChart"></canvas>
         </div>
+        <div class="chart-container">
+            <h3>Output: Forecast vs Model Prediction</h3>
+            <canvas id="outputChart"></canvas>
+        </div>
     </div>
 
     <div id="resultsTable" class="results-table hidden">
@@ -496,6 +500,154 @@
     function land_share(Yfinal, M, zeta, sigma_L) {
         const v = v_land(Yfinal, M, zeta, sigma_L);
         return v * M / Yfinal;
+    }
+
+    // ========================================
+    // OUTPUT PREDICTION FUNCTIONS
+    // ========================================
+
+    // Production function: Y_hat = A × K_Y^α × L_eff^(1-α)
+    // Returns Y_hat (Cobb-Douglas core output)
+    function productionFunction(A, K_Y, L_eff, alpha) {
+        return A * Math.pow(K_Y, alpha) * Math.pow(L_eff, 1.0 - alpha);
+    }
+
+    // Production function with land: Y = [ζM^ρ + (1-ζ)Y_hat^ρ]^(1/ρ)
+    // M = Y_2025 (base year output, treated as fixed land)
+    function productionFunctionWithLand(A, K_Y, L_eff, alpha, M, zeta, sigma_L) {
+        const Y_hat = productionFunction(A, K_Y, L_eff, alpha);
+        return Y_final_from_Yhat(Y_hat, M, zeta, sigma_L);
+    }
+
+    // Calibrate TFP (A) from base year data
+    // A = Y / (K_Y^α × L_eff^(1-α))
+    function calibrateTFP(Y, K_Y, L_eff, alpha) {
+        return Y / (Math.pow(K_Y, alpha) * Math.pow(L_eff, 1.0 - alpha));
+    }
+
+    // Solve for predicted output in one year using fixed-point iteration
+    // Returns the equilibrium Y where production function is satisfied
+    function solveYearWithPredictedOutput(row, params, landParams, A, Y_guess, maxIter = 50, tol = 1e-8) {
+        let Y = Y_guess;
+
+        for (let iter = 0; iter < maxIter; iter++) {
+            // Create row with current Y guess
+            const rowWithY = { ...row, Y: Y };
+
+            // Solve equilibrium given Y
+            const result = solveMuOneYear(rowWithY, params, landParams);
+
+            // Get K_Y and L_eff from equilibrium
+            const K_Y = result.K_Y;
+            const L_eff = result.L_eff;
+
+            // Compute predicted Y from production function
+            let Y_pred;
+            if (landParams) {
+                // With land: Y = [ζM^ρ + (1-ζ)Y_hat^ρ]^(1/ρ)
+                Y_pred = productionFunctionWithLand(A, K_Y, L_eff, params.alpha, landParams.M, landParams.zeta, landParams.sigma_L);
+            } else {
+                // Without land: Y = A × K_Y^α × L_eff^(1-α)
+                Y_pred = productionFunction(A, K_Y, L_eff, params.alpha);
+            }
+
+            // Check convergence
+            const relError = Math.abs(Y_pred - Y) / Math.max(Y, TINY);
+            if (relError < tol) {
+                // Converged - return full result with predicted Y
+                const finalRow = { ...row, Y: Y_pred };
+                const finalResult = solveMuOneYear(finalRow, params, landParams);
+                finalResult.Y_predicted = Y_pred;
+                finalResult.Y_forecast = row.Y;  // Original Y from spreadsheet
+                return finalResult;
+            }
+
+            // Update Y with damping for stability
+            Y = 0.5 * Y + 0.5 * Y_pred;
+        }
+
+        // Return last result even if not fully converged
+        const finalRow = { ...row, Y: Y };
+        const finalResult = solveMuOneYear(finalRow, params, landParams);
+        finalResult.Y_predicted = Y;
+        finalResult.Y_forecast = row.Y;
+        finalResult.Y_converged = false;
+        return finalResult;
+    }
+
+    // Solve for predicted output WITH endogenous labor supply
+    // Outer loop: iterate on Y until production function holds
+    // Inner loop: iterate on L until labor supply equation holds
+    function solveYearWithPredictedOutputAndEndogenousLabor(row, params, landParams, A, B, workingAgePop, Y_guess, maxOuterIter = 50, maxInnerIter = 50, tol = 1e-8) {
+        const psi = params.psi;
+        let Y = Y_guess;
+
+        for (let outerIter = 0; outerIter < maxOuterIter; outerIter++) {
+            // Inner loop: solve for L given Y
+            let L = row.H_data || workingAgePop * 0.6;
+
+            for (let innerIter = 0; innerIter < maxInnerIter; innerIter++) {
+                // Create row with current Y and L
+                const rowWithYL = { ...row, Y: Y, H_cog: L, H_phys: L };
+
+                // Solve equilibrium
+                const result = solveMuOneYear(rowWithYL, params, landParams);
+
+                // Compute average wage and new L from labor supply
+                const wbar = computeAverageWage(result.wc, result.wp, result.ell_c);
+                const L_new = laborSupply(B, wbar, psi, workingAgePop);
+
+                // Check inner convergence (L)
+                if (Math.abs(L_new - L) / Math.max(L, TINY) < tol) {
+                    L = L_new;
+                    break;
+                }
+
+                // Update L with damping
+                L = 0.5 * L + 0.5 * L_new;
+            }
+
+            // Now solve equilibrium with converged L
+            const rowWithYL = { ...row, Y: Y, H_cog: L, H_phys: L };
+            const result = solveMuOneYear(rowWithYL, params, landParams);
+
+            // Get K_Y and L_eff
+            const K_Y = result.K_Y;
+            const L_eff = result.L_eff;
+
+            // Compute predicted Y from production function
+            let Y_pred;
+            if (landParams) {
+                Y_pred = productionFunctionWithLand(A, K_Y, L_eff, params.alpha, landParams.M, landParams.zeta, landParams.sigma_L);
+            } else {
+                Y_pred = productionFunction(A, K_Y, L_eff, params.alpha);
+            }
+
+            // Check outer convergence (Y)
+            const relError = Math.abs(Y_pred - Y) / Math.max(Y, TINY);
+            if (relError < tol) {
+                // Converged - return final result
+                const finalRow = { ...row, Y: Y_pred, H_cog: L, H_phys: L };
+                const finalResult = solveMuOneYear(finalRow, params, landParams);
+                finalResult.Y_predicted = Y_pred;
+                finalResult.Y_forecast = row.Y;
+                finalResult.L_endogenous = L;
+                finalResult.wbar = computeAverageWage(finalResult.wc, finalResult.wp, finalResult.ell_c);
+                finalResult.participation_rate = L / workingAgePop;
+                return finalResult;
+            }
+
+            // Update Y with damping
+            Y = 0.5 * Y + 0.5 * Y_pred;
+        }
+
+        // Return last result even if not fully converged
+        const finalRow = { ...row, Y: Y };
+        const finalResult = solveMuOneYear(finalRow, params, landParams);
+        finalResult.Y_predicted = Y;
+        finalResult.Y_forecast = row.Y;
+        finalResult.Y_converged = false;
+        return finalResult;
     }
 
     // ========================================
@@ -790,7 +942,7 @@
 
         const profit = Y - (r * K + wc * Hc + wp * Hp + qc * AIc + qr * Rp);
 
-        return { A, r, wc, wp, qc, qr, Hc, Hp, ell_c: split.ell_c, profit };
+        return { A, r, wc, wp, qc, qr, Hc, Hp, ell_c: split.ell_c, profit, L_eff, L_cog, L_phys };
     }
 
     // Inner solver: fixed-point iteration for z = wc/wp
@@ -1121,6 +1273,7 @@
     let techChart = null;
     let laborChart = null;
     let consumptionChart = null;
+    let outputChart = null;
 
     function createCharts(results, useLand = false, showLaborChart = false, showConsumptionChart = false) {
         const years = results.map(r => r.year);
@@ -1169,6 +1322,7 @@
         if (techChart) techChart.destroy();
         if (laborChart) laborChart.destroy();
         if (consumptionChart) consumptionChart.destroy();
+        if (outputChart) outputChart.destroy();
 
         // Wages and Machine Prices chart
         const wagesCtx = document.getElementById('wagesChart').getContext('2d');
@@ -1806,6 +1960,66 @@
         } else {
             consumptionChartContainer.style.display = 'none';
         }
+
+        // Output: Forecast vs Model Prediction chart
+        const Y_forecast = results.map(r => r.Y_forecast || r.Y);
+        const Y_predicted = results.map(r => r.Y_predicted || r.Y);
+
+        const outputCtx = document.getElementById('outputChart').getContext('2d');
+        outputChart = new Chart(outputCtx, {
+            type: 'line',
+            data: {
+                labels: years,
+                datasets: [
+                    {
+                        label: 'Output Forecast (Spreadsheet)',
+                        data: Y_forecast,
+                        borderColor: 'rgb(150, 150, 150)',
+                        backgroundColor: 'rgb(150, 150, 150)',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        fill: false,
+                        tension: 0.1
+                    },
+                    {
+                        label: 'Output Model Prediction',
+                        data: Y_predicted,
+                        borderColor: 'rgb(31, 119, 180)',
+                        backgroundColor: 'rgb(31, 119, 180)',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Output: Forecast vs Model Prediction'
+                    },
+                    legend: {
+                        position: 'top'
+                    }
+                },
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Year'
+                        }
+                    },
+                    y: {
+                        type: 'logarithmic',
+                        title: {
+                            display: true,
+                            text: 'Output (log scale)'
+                        }
+                    }
+                }
+            }
+        });
     }
 
     function createResultsTable(results, useLand = false) {
@@ -1916,33 +2130,64 @@
 
             const doEndogenousLabor = useEndogenousLabor && hasWorkingAgePop;
 
-            let results;
+            // ========================================
+            // STEP 1: Calibrate TFP (A) from base year
+            // ========================================
+            const baseRow = loadedData[0];
+            let baseResult;
+            let B = null;  // Labor supply calibration constant
+
             if (doEndogenousLabor) {
-                // Endogenous labor supply mode
-                // Step 1: Solve base year with exogenous L to calibrate B
-                const baseRow = loadedData[0];
-                const baseResult = solveMuOneYear(baseRow, params, landParams);
+                // With endogenous labor: solve base year to calibrate both A and B
+                baseResult = solveMuOneYear(baseRow, params, landParams);
                 const wbar_0 = computeAverageWage(baseResult.wc, baseResult.wp, baseResult.ell_c);
                 const L_0 = baseRow.H_data;
-                const B = calibrateLaborSupplyB(L_0, wbar_0, params.psi);
-
-                // Step 2: Solve each year with endogenous labor supply
-                results = loadedData.map(row => {
-                    const workingAgePop = row.WorkingAgePop;
-                    const solution = solveWithEndogenousLabor(row, params, landParams, B, workingAgePop);
-                    return {
-                        year: row.year,
-                        ...row,
-                        ...solution
-                    };
-                });
+                B = calibrateLaborSupplyB(L_0, wbar_0, params.psi);
             } else {
-                // Exogenous labor supply mode (original behavior)
-                results = loadedData.map(row => ({
+                // Without endogenous labor: just solve base year
+                baseResult = solveMuOneYear(baseRow, params, landParams);
+            }
+
+            // Calibrate TFP: A = Y / (K_Y^α × L_eff^(1-α))
+            const A = calibrateTFP(baseRow.Y, baseResult.K_Y, baseResult.L_eff, params.alpha);
+
+            // ========================================
+            // STEP 2: Solve each year with predicted output
+            // ========================================
+            let results = [];
+
+            for (let i = 0; i < loadedData.length; i++) {
+                const row = loadedData[i];
+                let solution;
+
+                if (i === 0) {
+                    // Base year: use spreadsheet Y (already solved)
+                    solution = {
+                        ...baseResult,
+                        Y_predicted: baseRow.Y,
+                        Y_forecast: baseRow.Y
+                    };
+                } else {
+                    // Subsequent years: predict Y using production function
+                    // Use previous year's predicted Y as initial guess
+                    const Y_guess = results[i - 1].Y_predicted;
+
+                    if (doEndogenousLabor) {
+                        // Combine endogenous labor and output prediction
+                        solution = solveYearWithPredictedOutputAndEndogenousLabor(
+                            row, params, landParams, A, B, row.WorkingAgePop, Y_guess
+                        );
+                    } else {
+                        // Just output prediction (exogenous labor)
+                        solution = solveYearWithPredictedOutput(row, params, landParams, A, Y_guess);
+                    }
+                }
+
+                results.push({
                     year: row.year,
                     ...row,
-                    ...solveMuOneYear(row, params, landParams)
-                }));
+                    ...solution
+                });
             }
 
             const useTaxation = isTaxationMode();
