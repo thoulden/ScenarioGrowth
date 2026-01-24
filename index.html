@@ -223,6 +223,15 @@
             </label>
         </div>
 
+        <!-- Predicted Output Toggle -->
+        <div style="margin-bottom: 15px; padding: 10px; background: #f5f0ff; border-radius: 4px; border: 1px solid #d0c5e5;">
+            <label style="display: flex; align-items: center; cursor: pointer;">
+                <input type="checkbox" id="usePredictedOutput" style="margin-right: 10px; width: 18px; height: 18px;">
+                <span style="font-weight: 600; color: #500085;">Predict Output & Capital</span>
+                <small style="margin-left: 10px; color: #666;">(Use production function instead of spreadsheet values)</small>
+            </label>
+        </div>
+
         <h3 class="param-section-title">Choice Parameters (Elasticities)</h3>
         <div class="params-grid">
             <div class="param-group">
@@ -304,6 +313,23 @@
                 <label for="delta_R">δ_R (robot capital)</label>
                 <input type="number" id="delta_R" value="0.10" step="0.01" min="0" max="1">
                 <small>Depreciation of K_R</small>
+            </div>
+        </div>
+
+        <!-- Capital accumulation parameters (hidden by default) -->
+        <div id="capitalAccumParams" class="hidden">
+            <h3 class="param-section-title">Capital Accumulation</h3>
+            <div class="params-grid">
+                <div class="param-group">
+                    <label for="savings_rate">s (savings rate)</label>
+                    <input type="number" id="savings_rate" value="0.20" step="0.01" min="0" max="1">
+                    <small>Fraction of output saved</small>
+                </div>
+                <div class="param-group">
+                    <label for="initial_YK_ratio">Y/K ratio (base year)</label>
+                    <input type="number" id="initial_YK_ratio" value="3.71" step="0.01" min="0.1">
+                    <small>Output-to-capital ratio for K₀</small>
+                </div>
             </div>
         </div>
 
@@ -402,6 +428,11 @@
         return document.getElementById('useTaxation').checked;
     }
 
+    // Check if predicted output mode is enabled
+    function isPredictedOutputMode() {
+        return document.getElementById('usePredictedOutput').checked;
+    }
+
     // Get parameters from inputs
     function getParams() {
         const params = {
@@ -433,6 +464,11 @@
             params.tau_k = 0;
             params.tau_AI = 0;
             params.tau_R = 0;
+        }
+
+        if (isPredictedOutputMode()) {
+            params.savings_rate = parseFloat(document.getElementById('savings_rate').value);
+            params.initial_YK_ratio = parseFloat(document.getElementById('initial_YK_ratio').value);
         }
 
         return params;
@@ -2129,65 +2165,125 @@
             }
 
             const doEndogenousLabor = useEndogenousLabor && hasWorkingAgePop;
+            const doPredictedOutput = isPredictedOutputMode();
 
-            // ========================================
-            // STEP 1: Calibrate TFP (A) from base year
-            // ========================================
-            const baseRow = loadedData[0];
-            let baseResult;
-            let B = null;  // Labor supply calibration constant
-
-            if (doEndogenousLabor) {
-                // With endogenous labor: solve base year to calibrate both A and B
-                baseResult = solveMuOneYear(baseRow, params, landParams);
-                const wbar_0 = computeAverageWage(baseResult.wc, baseResult.wp, baseResult.ell_c);
-                const L_0 = baseRow.H_data;
-                B = calibrateLaborSupplyB(L_0, wbar_0, params.psi);
-            } else {
-                // Without endogenous labor: just solve base year
-                baseResult = solveMuOneYear(baseRow, params, landParams);
-            }
-
-            // Calibrate TFP: A = Y / (K_Y^α × L_eff^(1-α))
-            const A = calibrateTFP(baseRow.Y, baseResult.K_Y, baseResult.L_eff, params.alpha);
-
-            // ========================================
-            // STEP 2: Solve each year with predicted output
-            // ========================================
             let results = [];
 
-            for (let i = 0; i < loadedData.length; i++) {
-                const row = loadedData[i];
-                let solution;
+            if (doPredictedOutput) {
+                // ========================================
+                // PREDICTED OUTPUT MODE
+                // ========================================
+                const baseRow = loadedData[0];
 
-                if (i === 0) {
-                    // Base year: use spreadsheet Y (already solved)
-                    solution = {
-                        ...baseResult,
-                        Y_predicted: baseRow.Y,
-                        Y_forecast: baseRow.Y
-                    };
+                // Base year: K_0 = Y_0 / (Y/K ratio)
+                const K_0 = baseRow.Y / params.initial_YK_ratio;
+                const baseRowWithK = { ...baseRow, K: K_0 };
+
+                // Solve base year to calibrate TFP (A) and labor supply (B)
+                let baseResult;
+                let B = null;
+
+                if (doEndogenousLabor) {
+                    baseResult = solveMuOneYear(baseRowWithK, params, landParams);
+                    const wbar_0 = computeAverageWage(baseResult.wc, baseResult.wp, baseResult.ell_c);
+                    const L_0 = baseRow.H_data;
+                    B = calibrateLaborSupplyB(L_0, wbar_0, params.psi);
                 } else {
-                    // Subsequent years: predict Y using production function
-                    // Use previous year's predicted Y as initial guess
-                    const Y_guess = results[i - 1].Y_predicted;
-
-                    if (doEndogenousLabor) {
-                        // Combine endogenous labor and output prediction
-                        solution = solveYearWithPredictedOutputAndEndogenousLabor(
-                            row, params, landParams, A, B, row.WorkingAgePop, Y_guess
-                        );
-                    } else {
-                        // Just output prediction (exogenous labor)
-                        solution = solveYearWithPredictedOutput(row, params, landParams, A, Y_guess);
-                    }
+                    baseResult = solveMuOneYear(baseRowWithK, params, landParams);
                 }
 
-                results.push({
-                    year: row.year,
-                    ...row,
-                    ...solution
-                });
+                // Calibrate TFP: A = Y / (K_Y^α × L_eff^(1-α))
+                const A = calibrateTFP(baseRow.Y, baseResult.K_Y, baseResult.L_eff, params.alpha);
+
+                // Process each year
+                let prev_Y = baseRow.Y;
+                let prev_K = K_0;
+
+                for (let i = 0; i < loadedData.length; i++) {
+                    const row = loadedData[i];
+                    let solution;
+                    let K_t, Y_t;
+
+                    if (i === 0) {
+                        // Base year: use spreadsheet Y and computed K_0
+                        K_t = K_0;
+                        Y_t = baseRow.Y;
+                        solution = {
+                            ...baseResult,
+                            Y_predicted: Y_t,
+                            Y_forecast: row.Y,
+                            K_predicted: K_t,
+                            K_forecast: row.K
+                        };
+                    } else {
+                        // Capital accumulation: K_t = s × Y_{t-1} + (1 - δ_K) × K_{t-1}
+                        K_t = params.savings_rate * prev_Y + (1.0 - params.delta_K) * prev_K;
+
+                        // Create row with predicted K
+                        const rowWithK = { ...row, K: K_t };
+
+                        // Use previous year's predicted Y as initial guess
+                        const Y_guess = prev_Y * 1.05;  // Guess 5% growth
+
+                        if (doEndogenousLabor) {
+                            solution = solveYearWithPredictedOutputAndEndogenousLabor(
+                                rowWithK, params, landParams, A, B, row.WorkingAgePop, Y_guess
+                            );
+                        } else {
+                            solution = solveYearWithPredictedOutput(rowWithK, params, landParams, A, Y_guess);
+                        }
+
+                        Y_t = solution.Y_predicted;
+                        solution.K_predicted = K_t;
+                        solution.K_forecast = row.K;
+                    }
+
+                    results.push({
+                        year: row.year,
+                        ...row,
+                        K: K_t,  // Override with predicted K
+                        ...solution
+                    });
+
+                    prev_Y = Y_t;
+                    prev_K = K_t;
+                }
+            } else {
+                // ========================================
+                // SPREADSHEET MODE (original behavior)
+                // ========================================
+                let B = null;
+
+                if (doEndogenousLabor) {
+                    // Calibrate B from base year
+                    const baseRow = loadedData[0];
+                    const baseResult = solveMuOneYear(baseRow, params, landParams);
+                    const wbar_0 = computeAverageWage(baseResult.wc, baseResult.wp, baseResult.ell_c);
+                    const L_0 = baseRow.H_data;
+                    B = calibrateLaborSupplyB(L_0, wbar_0, params.psi);
+
+                    // Solve each year with endogenous labor
+                    results = loadedData.map(row => {
+                        const workingAgePop = row.WorkingAgePop;
+                        const solution = solveWithEndogenousLabor(row, params, landParams, B, workingAgePop);
+                        return {
+                            year: row.year,
+                            ...row,
+                            ...solution,
+                            Y_predicted: row.Y,
+                            Y_forecast: row.Y
+                        };
+                    });
+                } else {
+                    // Simple mode: use spreadsheet values directly
+                    results = loadedData.map(row => ({
+                        year: row.year,
+                        ...row,
+                        ...solveMuOneYear(row, params, landParams),
+                        Y_predicted: row.Y,
+                        Y_forecast: row.Y
+                    }));
+                }
             }
 
             const useTaxation = isTaxationMode();
@@ -2197,7 +2293,8 @@
             const modeStr = useLand ? 'land bottleneck' : 'baseline';
             const laborStr = doEndogenousLabor ? ' with endogenous labor' : '';
             const taxStr = useTaxation ? ' with taxation' : '';
-            showStatus(`Model (${modeStr}${laborStr}${taxStr}) completed successfully!`, 'success');
+            const predictStr = doPredictedOutput ? ' with predicted Y & K' : '';
+            showStatus(`Model (${modeStr}${laborStr}${taxStr}${predictStr}) completed successfully!`, 'success');
         } catch (err) {
             showStatus('Error running model: ' + err.message, 'error');
             console.error(err);
@@ -2220,6 +2317,12 @@
     document.getElementById('useTaxation').addEventListener('change', function() {
         const useTaxation = this.checked;
         document.getElementById('taxParams').classList.toggle('hidden', !useTaxation);
+    });
+
+    // Toggle capital accumulation parameters visibility
+    document.getElementById('usePredictedOutput').addEventListener('change', function() {
+        const usePredictedOutput = this.checked;
+        document.getElementById('capitalAccumParams').classList.toggle('hidden', !usePredictedOutput);
     });
 
     // Template download
