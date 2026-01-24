@@ -59,7 +59,7 @@ Y = A × K_Y^α × L_eff^(1-α)
 **With Land Mode:**
 ```
 Y_hat = A × K_Y^α × L_eff^(1-α)
-Y = [ζ × M^ρ_L + (1-ζ) × Y_hat^ρ_L]^(1/ρ_L)
+Y = [ζ × (C_t × M)^ρ_L + (1-ζ) × Y_hat^ρ_L]^(1/ρ_L)
 ```
 
 Where:
@@ -67,9 +67,20 @@ Where:
 - `K_Y` = capital allocated to output production (NOT total capital K)
 - `α` = capital share (default 0.30)
 - `M` = land (fixed at base year output Y_0)
+- `C_t` = land productivity multiplier (time-varying)
 - `ζ` = land share parameter (s_L)
 - `ρ_L = (σ_L - 1) / σ_L`
 - `σ_L` = elasticity of substitution between land and other inputs
+
+**Land Productivity (C_t):**
+```
+g_c = ln(C_2040) / 15
+C_t = e^(g_c × years_since_base_year)
+```
+- `C_t = 1.0` in base year (2025)
+- `C_t = C_2040` in year 2040
+- If `C_2040 < 1`, land productivity declines over time (bottleneck tightens)
+- If `C_2040 > 1`, land productivity improves over time (bottleneck loosens)
 
 **IMPORTANT**: The production function uses K_Y (output capital), not total capital K. Total capital K = K_Y + K_C + K_R.
 
@@ -331,6 +342,7 @@ For each year, compute:
 | Labor supply elasticity | ψ | 1.0 | L = B × w̄^(1/ψ) |
 | Land substitution | σ_L | 0.60 | Elasticity with land |
 | Land share | s_L | 0.01 | Base-year land income share |
+| Land productivity 2040 | C_2040 | 0.20 | Land productivity multiplier by 2040 |
 | Output capital depreciation | δ_K | 0.10 | Depreciation rate |
 | AI capital depreciation | δ_C | 0.10 | Depreciation rate |
 | Robot capital depreciation | δ_R | 0.10 | Depreciation rate |

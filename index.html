@@ -275,6 +275,11 @@
                     <input type="number" id="s_L" value="0.01" step="0.01" min="0.001" max="0.99">
                     <small>Land income share in base year (target)</small>
                 </div>
+                <div class="param-group">
+                    <label for="C_2040">C₂₀₄₀ (land productivity in 2040)</label>
+                    <input type="number" id="C_2040" value="0.2" step="0.01" min="0.001">
+                    <small>Land productivity multiplier by 2040</small>
+                </div>
             </div>
         </div>
 
@@ -453,6 +458,7 @@
         if (isLandMode()) {
             params.sigma_L = parseFloat(document.getElementById('sigma_L').value);
             params.s_L = parseFloat(document.getElementById('s_L').value);
+            params.C_2040 = parseFloat(document.getElementById('C_2040').value);
         }
 
         if (isTaxationMode()) {
@@ -478,22 +484,27 @@
     // LAND MODEL FUNCTIONS
     // ========================================
 
-    // Y_final from Y_hat (CES combination of Y_hat and land M)
-    // Y_final = [zeta * M^rho + (1-zeta) * Yhat^rho]^(1/rho)
+    // Y_final from Y_hat (CES combination of Y_hat and effective land C_t × M)
+    // Y_final = [zeta * (C_t * M)^rho + (1-zeta) * Yhat^rho]^(1/rho)
     // where rho = (sigma_L - 1) / sigma_L
     // With M = Y_0 (base year output), land share in base year = zeta = s_L
-    function Y_final_from_Yhat(Yhat, M, zeta, sigma_L) {
+    // C_t is the land productivity multiplier (defaults to 1.0)
+    function Y_final_from_Yhat(Yhat, M, zeta, sigma_L, C_t = 1.0) {
         Yhat = Math.max(Yhat, TINY);
         M = Math.max(M, TINY);
+        C_t = Math.max(C_t, TINY);
         zeta = Math.max(TINY, Math.min(zeta, 1.0 - TINY));
 
+        // Effective land = C_t × M
+        const M_eff = C_t * M;
+
         if (Math.abs(sigma_L - 1.0) < 1e-10) {
-            // Cobb-Douglas limit: Y = M^zeta * Yhat^(1-zeta)
-            return Math.pow(M, zeta) * Math.pow(Yhat, 1.0 - zeta);
+            // Cobb-Douglas limit: Y = (C_t*M)^zeta * Yhat^(1-zeta)
+            return Math.pow(M_eff, zeta) * Math.pow(Yhat, 1.0 - zeta);
         }
 
         const rho = (sigma_L - 1.0) / sigma_L;
-        const term1 = zeta * Math.pow(M, rho);
+        const term1 = zeta * Math.pow(M_eff, rho);
         const term2 = (1.0 - zeta) * Math.pow(Yhat, rho);
         return Math.pow(term1 + term2, 1.0 / rho);
     }
@@ -516,11 +527,12 @@
     }
 
     // Land rent (v = dY_final/dM)
-    // For Y = [zeta * M^rho + (1-zeta) * Yhat^rho]^(1/rho):
-    // dY/dM = Y^(1-rho) * zeta * M^(rho-1)
-    function v_land(Yfinal, M, zeta, sigma_L) {
+    // For Y = [zeta * (C_t*M)^rho + (1-zeta) * Yhat^rho]^(1/rho):
+    // dY/dM = Y^(1-rho) * zeta * C_t^rho * M^(rho-1)
+    function v_land(Yfinal, M, zeta, sigma_L, C_t = 1.0) {
         Yfinal = Math.max(Yfinal, TINY);
         M = Math.max(M, TINY);
+        C_t = Math.max(C_t, TINY);
         zeta = Math.max(TINY, Math.min(zeta, 1.0 - TINY));
 
         if (Math.abs(sigma_L - 1.0) < 1e-10) {
@@ -529,13 +541,26 @@
         }
 
         const rho = (sigma_L - 1.0) / sigma_L;
-        return Math.pow(Yfinal, 1.0 - rho) * zeta * Math.pow(M, rho - 1.0);
+        // dY/dM = C_t^rho * Y^(1-rho) * zeta * M^(rho-1)
+        return Math.pow(C_t, rho) * Math.pow(Yfinal, 1.0 - rho) * zeta * Math.pow(M, rho - 1.0);
     }
 
     // Land income share
-    function land_share(Yfinal, M, zeta, sigma_L) {
-        const v = v_land(Yfinal, M, zeta, sigma_L);
+    function land_share(Yfinal, M, zeta, sigma_L, C_t = 1.0) {
+        const v = v_land(Yfinal, M, zeta, sigma_L, C_t);
         return v * M / Yfinal;
+    }
+
+    // Compute land productivity multiplier C_t for a given year
+    // g_c = ln(C_2040) / 15
+    // C_t = e^(g_c × years_since_base_year)
+    // Returns 1.0 for base year, C_2040 for year 2040
+    function computeLandProductivity(year, baseYear, C_2040) {
+        const yearsSinceBase = year - baseYear;
+        if (yearsSinceBase <= 0) return 1.0;
+        // g_c = ln(C_2040) / 15 (assumes base year is 2025 and target is 2040)
+        const g_c = Math.log(C_2040) / 15;
+        return Math.exp(g_c * yearsSinceBase);
     }
 
     // ========================================
@@ -548,11 +573,12 @@
         return A * Math.pow(K_Y, alpha) * Math.pow(L_eff, 1.0 - alpha);
     }
 
-    // Production function with land: Y = [ζM^ρ + (1-ζ)Y_hat^ρ]^(1/ρ)
+    // Production function with land: Y = [ζ(C_t×M)^ρ + (1-ζ)Y_hat^ρ]^(1/ρ)
     // M = Y_2025 (base year output, treated as fixed land)
-    function productionFunctionWithLand(A, K_Y, L_eff, alpha, M, zeta, sigma_L) {
+    // C_t = land productivity multiplier
+    function productionFunctionWithLand(A, K_Y, L_eff, alpha, M, zeta, sigma_L, C_t = 1.0) {
         const Y_hat = productionFunction(A, K_Y, L_eff, alpha);
-        return Y_final_from_Yhat(Y_hat, M, zeta, sigma_L);
+        return Y_final_from_Yhat(Y_hat, M, zeta, sigma_L, C_t);
     }
 
     // Calibrate TFP (A) from base year data
@@ -580,8 +606,8 @@
             // Compute predicted Y from production function
             let Y_pred;
             if (landParams) {
-                // With land: Y = [ζM^ρ + (1-ζ)Y_hat^ρ]^(1/ρ)
-                Y_pred = productionFunctionWithLand(A, K_Y, L_eff, params.alpha, landParams.M, landParams.zeta, landParams.sigma_L);
+                // With land: Y = [ζ(C_t×M)^ρ + (1-ζ)Y_hat^ρ]^(1/ρ)
+                Y_pred = productionFunctionWithLand(A, K_Y, L_eff, params.alpha, landParams.M, landParams.zeta, landParams.sigma_L, landParams.C_t);
             } else {
                 // Without land: Y = A × K_Y^α × L_eff^(1-α)
                 Y_pred = productionFunction(A, K_Y, L_eff, params.alpha);
@@ -654,7 +680,7 @@
             // Compute predicted Y from production function
             let Y_pred;
             if (landParams) {
-                Y_pred = productionFunctionWithLand(A, K_Y, L_eff, params.alpha, landParams.M, landParams.zeta, landParams.sigma_L);
+                Y_pred = productionFunctionWithLand(A, K_Y, L_eff, params.alpha, landParams.M, landParams.zeta, landParams.sigma_L, landParams.C_t);
             } else {
                 Y_pred = productionFunction(A, K_Y, L_eff, params.alpha);
             }
@@ -1023,15 +1049,16 @@
         let landShare = 0;
 
         if (landParams) {
-            const { sigma_L, zeta, M } = landParams;
+            const { sigma_L, zeta, M, C_t = 1.0 } = landParams;
             // Compute Y_final from Y_hat (Y is Y_hat in land mode)
-            Y_final = Y_final_from_Yhat(Y, M, zeta, sigma_L);
+            // Using effective land = C_t × M
+            Y_final = Y_final_from_Yhat(Y, M, zeta, sigma_L, C_t);
             // Shadow price of final output
             PY = P_Y_shadow(Y_final, Y, zeta, sigma_L);
-            // Land rent
-            v = v_land(Y_final, M, zeta, sigma_L);
+            // Land rent (includes C_t effect)
+            v = v_land(Y_final, M, zeta, sigma_L, C_t);
             // Land income share
-            landShare = land_share(Y_final, M, zeta, sigma_L);
+            landShare = land_share(Y_final, M, zeta, sigma_L, C_t);
         }
 
         // bar_auto is max automatable share => min human share = 1 - bar_auto
@@ -2165,11 +2192,16 @@
                 const M = loadedData[0].Y;
                 // zeta = s_L (land share parameter = weight on land in CES)
                 const zeta = params.s_L;
+                // base year for C_t calculation
+                const baseYear = loadedData[0].year;
                 landParams = {
                     sigma_L: params.sigma_L,
                     s_L: params.s_L,
                     M: M,
-                    zeta: zeta
+                    zeta: zeta,
+                    C_2040: params.C_2040,
+                    baseYear: baseYear,
+                    C_t: 1.0  // Will be updated for each year
                 };
             }
 
@@ -2221,6 +2253,11 @@
                     const row = loadedData[i];
                     let solution;
                     let K_t, Y_t;
+
+                    // Update land productivity C_t for this year
+                    if (landParams) {
+                        landParams.C_t = computeLandProductivity(row.year, landParams.baseYear, landParams.C_2040);
+                    }
 
                     if (i === 0) {
                         // Base year: use spreadsheet Y and computed K_0
@@ -2281,26 +2318,38 @@
                     B = calibrateLaborSupplyB(L_0, wbar_0, params.psi);
 
                     // Solve each year with endogenous labor
-                    results = loadedData.map(row => {
+                    for (let i = 0; i < loadedData.length; i++) {
+                        const row = loadedData[i];
+                        // Update land productivity C_t for this year
+                        if (landParams) {
+                            landParams.C_t = computeLandProductivity(row.year, landParams.baseYear, landParams.C_2040);
+                        }
                         const workingAgePop = row.WorkingAgePop;
                         const solution = solveWithEndogenousLabor(row, params, landParams, B, workingAgePop);
-                        return {
+                        results.push({
                             year: row.year,
                             ...row,
                             ...solution,
                             Y_predicted: row.Y,
                             Y_forecast: row.Y
-                        };
-                    });
+                        });
+                    }
                 } else {
                     // Simple mode: use spreadsheet values directly
-                    results = loadedData.map(row => ({
-                        year: row.year,
-                        ...row,
-                        ...solveMuOneYear(row, params, landParams),
-                        Y_predicted: row.Y,
-                        Y_forecast: row.Y
-                    }));
+                    for (let i = 0; i < loadedData.length; i++) {
+                        const row = loadedData[i];
+                        // Update land productivity C_t for this year
+                        if (landParams) {
+                            landParams.C_t = computeLandProductivity(row.year, landParams.baseYear, landParams.C_2040);
+                        }
+                        results.push({
+                            year: row.year,
+                            ...row,
+                            ...solveMuOneYear(row, params, landParams),
+                            Y_predicted: row.Y,
+                            Y_forecast: row.Y
+                        });
+                    }
                 }
             }
 
