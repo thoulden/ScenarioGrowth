@@ -267,7 +267,7 @@
             <div class="params-grid">
                 <div class="param-group">
                     <label for="sigma_L">σ_L (land substitution)</label>
-                    <input type="number" id="sigma_L" value="0.60" step="0.01" min="0.01">
+                    <input type="number" id="sigma_L" value="0.65" step="0.01" min="0.01">
                     <small>Elasticity between land and other inputs</small>
                 </div>
                 <div class="param-group">
@@ -396,9 +396,22 @@
             <h3>Labor Force and Working Age Population</h3>
             <canvas id="laborChart"></canvas>
         </div>
-        <div class="chart-container" id="consumptionChartContainer" style="display: none;">
+        <div class="chart-container" id="incomeChartsContainer" style="display: none;">
             <h3>Household Income per Worker</h3>
-            <canvas id="consumptionChart"></canvas>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div id="wageIncomeChartContainer" style="display: none;">
+                    <canvas id="wageIncomeChart"></canvas>
+                </div>
+                <div id="capitalTaxChartContainer" style="display: none;">
+                    <canvas id="capitalTaxChart"></canvas>
+                </div>
+                <div id="aiTaxChartContainer" style="display: none;">
+                    <canvas id="aiTaxChart"></canvas>
+                </div>
+                <div id="robotTaxChartContainer" style="display: none;">
+                    <canvas id="robotTaxChart"></canvas>
+                </div>
+            </div>
         </div>
         <div class="chart-container">
             <h3>Output: Forecast vs Model Prediction</h3>
@@ -1335,7 +1348,10 @@
     let factorIncomeChart = null;
     let techChart = null;
     let laborChart = null;
-    let consumptionChart = null;
+    let wageIncomeChart = null;
+    let capitalTaxChart = null;
+    let aiTaxChart = null;
+    let robotTaxChart = null;
     let outputChart = null;
 
     function createCharts(results, useLand = false, showLaborChart = false, showConsumptionChart = false) {
@@ -1384,7 +1400,10 @@
         if (factorIncomeChart) factorIncomeChart.destroy();
         if (techChart) techChart.destroy();
         if (laborChart) laborChart.destroy();
-        if (consumptionChart) consumptionChart.destroy();
+        if (wageIncomeChart) wageIncomeChart.destroy();
+        if (capitalTaxChart) capitalTaxChart.destroy();
+        if (aiTaxChart) aiTaxChart.destroy();
+        if (robotTaxChart) robotTaxChart.destroy();
         if (outputChart) outputChart.destroy();
 
         // Wages and Machine Prices chart
@@ -1937,10 +1956,21 @@
             laborChartContainer.style.display = 'none';
         }
 
-        // Household Income per Worker chart (stacked area - shown when taxation is enabled)
-        const consumptionChartContainer = document.getElementById('consumptionChartContainer');
+        // Household Income per Worker charts (shown when taxation is enabled)
+        const incomeChartsContainer = document.getElementById('incomeChartsContainer');
+        const wageIncomeChartContainer = document.getElementById('wageIncomeChartContainer');
+        const capitalTaxChartContainer = document.getElementById('capitalTaxChartContainer');
+        const aiTaxChartContainer = document.getElementById('aiTaxChartContainer');
+        const robotTaxChartContainer = document.getElementById('robotTaxChartContainer');
+
         if (showConsumptionChart) {
-            consumptionChartContainer.style.display = '';
+            incomeChartsContainer.style.display = '';
+
+            // Get current tax rates
+            const params = getParams();
+            const showCapitalTax = params.tau_k > 0;
+            const showAITax = params.tau_AI > 0;
+            const showRobotTax = params.tau_R > 0;
 
             // Extract per-worker data
             const wage_per_worker = results.map(r => r.wage_per_worker || 0);
@@ -1948,81 +1978,81 @@
             const T_AI_per_worker = results.map(r => r.T_AI_per_worker || 0);
             const T_robot_per_worker = results.map(r => r.T_robot_per_worker || 0);
 
-            const consumptionCtx = document.getElementById('consumptionChart').getContext('2d');
-            consumptionChart = new Chart(consumptionCtx, {
-                type: 'line',
-                data: {
-                    labels: years,
-                    datasets: [
-                        {
-                            label: 'Wage Income',
-                            data: wage_per_worker,
-                            borderColor: 'rgb(31, 119, 180)',
-                            backgroundColor: 'rgba(31, 119, 180, 0.8)',
-                            borderWidth: 1,
+            // Helper to create a simple income chart
+            function createIncomeSubChart(ctx, label, data, color) {
+                return new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: years,
+                        datasets: [{
+                            label: label,
+                            data: data,
+                            borderColor: color,
+                            backgroundColor: color.replace('rgb', 'rgba').replace(')', ', 0.3)'),
+                            borderWidth: 2,
                             fill: true,
                             tension: 0.1
-                        },
-                        {
-                            label: 'Transfer (Capital Tax)',
-                            data: T_capital_per_worker,
-                            borderColor: 'rgb(150, 150, 150)',
-                            backgroundColor: 'rgba(150, 150, 150, 0.8)',
-                            borderWidth: 1,
-                            fill: true,
-                            tension: 0.1
-                        },
-                        {
-                            label: 'Transfer (AI Tax)',
-                            data: T_AI_per_worker,
-                            borderColor: 'rgb(148, 103, 189)',
-                            backgroundColor: 'rgba(148, 103, 189, 0.8)',
-                            borderWidth: 1,
-                            fill: true,
-                            tension: 0.1
-                        },
-                        {
-                            label: 'Transfer (Robot Tax)',
-                            data: T_robot_per_worker,
-                            borderColor: 'rgb(255, 127, 14)',
-                            backgroundColor: 'rgba(255, 127, 14, 0.8)',
-                            borderWidth: 1,
-                            fill: true,
-                            tension: 0.1
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        title: {
-                            display: true,
-                            text: 'Household income per worker over time'
-                        },
-                        legend: {
-                            position: 'bottom'
-                        }
+                        }]
                     },
-                    scales: {
-                        x: {
-                            title: {
-                                display: true,
-                                text: 'Year'
-                            }
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            title: { display: true, text: label },
+                            legend: { display: false }
                         },
-                        y: {
-                            stacked: true,
-                            title: {
-                                display: true,
-                                text: 'Income per Worker'
-                            },
-                            beginAtZero: true
+                        scales: {
+                            x: { title: { display: true, text: 'Year' } },
+                            y: { title: { display: true, text: '$ per Worker' }, beginAtZero: true }
                         }
                     }
-                }
-            });
+                });
+            }
+
+            // Always show wage income chart
+            wageIncomeChartContainer.style.display = '';
+            wageIncomeChart = createIncomeSubChart(
+                document.getElementById('wageIncomeChart').getContext('2d'),
+                'Wage Income', wage_per_worker, 'rgb(31, 119, 180)'
+            );
+
+            // Show capital tax chart only if tau_k > 0
+            if (showCapitalTax) {
+                capitalTaxChartContainer.style.display = '';
+                capitalTaxChart = createIncomeSubChart(
+                    document.getElementById('capitalTaxChart').getContext('2d'),
+                    'Transfer (Capital Tax)', T_capital_per_worker, 'rgb(150, 150, 150)'
+                );
+            } else {
+                capitalTaxChartContainer.style.display = 'none';
+            }
+
+            // Show AI tax chart only if tau_AI > 0
+            if (showAITax) {
+                aiTaxChartContainer.style.display = '';
+                aiTaxChart = createIncomeSubChart(
+                    document.getElementById('aiTaxChart').getContext('2d'),
+                    'Transfer (AI Tax)', T_AI_per_worker, 'rgb(148, 103, 189)'
+                );
+            } else {
+                aiTaxChartContainer.style.display = 'none';
+            }
+
+            // Show robot tax chart only if tau_R > 0
+            if (showRobotTax) {
+                robotTaxChartContainer.style.display = '';
+                robotTaxChart = createIncomeSubChart(
+                    document.getElementById('robotTaxChart').getContext('2d'),
+                    'Transfer (Robot Tax)', T_robot_per_worker, 'rgb(255, 127, 14)'
+                );
+            } else {
+                robotTaxChartContainer.style.display = 'none';
+            }
         } else {
-            consumptionChartContainer.style.display = 'none';
+            incomeChartsContainer.style.display = 'none';
+            wageIncomeChartContainer.style.display = 'none';
+            capitalTaxChartContainer.style.display = 'none';
+            aiTaxChartContainer.style.display = 'none';
+            robotTaxChartContainer.style.display = 'none';
         }
 
         // Output: Forecast vs Model Prediction chart
