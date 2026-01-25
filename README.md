@@ -340,7 +340,7 @@ For each year, compute:
 | Labor ratio scale | κ | 1.6 | Scale factor in labor allocation |
 | Cognitive weight | θ | 0.68 | Weight on cognitive in L_eff |
 | Labor supply elasticity | ψ | 1.0 | L = B × w̄^(1/ψ) |
-| Land substitution | σ_L | 0.60 | Elasticity with land |
+| Land substitution | σ_L | 0.65 | Elasticity with land |
 | Land share | s_L | 0.01 | Base-year land income share |
 | Land productivity 2040 | C_2040 | 2.0 | Land productivity multiplier by 2040 |
 | Output capital depreciation | δ_K | 0.10 | Depreciation rate |
