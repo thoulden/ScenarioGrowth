@@ -342,7 +342,7 @@ For each year, compute:
 | Labor supply elasticity | ψ | 1.0 | L = B × w̄^(1/ψ) |
 | Land substitution | σ_L | 0.65 | Elasticity with land |
 | Land share | s_L | 0.01 | Base-year land income share |
-| Land productivity 2040 | C_2040 | 2.0 | Land productivity multiplier by 2040 |
+| Land productivity 2040 | C_2040 | 20 | Land productivity multiplier by 2040 |
 | Output capital depreciation | δ_K | 0.10 | Depreciation rate |
 | AI capital depreciation | δ_C | 0.10 | Depreciation rate |
 | Robot capital depreciation | δ_R | 0.10 | Depreciation rate |
