@@ -1,0 +1,9 @@
+metric,value,units,year,confidence_level,source
+US_total_urban_built_up_area_ha_CONUS_NLCD2021,47028302,ha,2021,medium,"MRLC NLCD2021 statistics (Developed 21-24); CONUS area; calculated"
+US_total_agricultural_land_area_ha,354690778,ha,2024,high,"USDA NASS Farms and Land in Farms 2024 Summary; acres to ha"
+US_total_land_rents_USD_per_year,1865881620000,USD/year,2025,low,"0.06 * GDP using FRED nominal GDP (Q3 2025 SAAR); assumption"
+US_urban_land_rents_share_percent,96.4204,%,2025,low,"(total land rents - ag rent proxy) / total; calculated"
+US_agricultural_land_rents_share_percent,3.5796,%,2025,low,"Ag rent proxy (NASS cash rents * land-in-farms * Census22 shares) / total; calculated"
+US_avg_urban_land_rent_USD_per_ha_per_year,38255.5,USD/ha/year,2025,low,"Urban rent proxy / NLCD2021 developed area; calculated"
+US_avg_agricultural_land_rent_USD_per_ha_per_year,213.98,USD/ha/year,2025,high,"NASS 2025 cropland+pasture cash rents weighted by Census22 shares; acres to ha"
+US_total_primary_energy_consumption_TW,3.1515,TW,2024,high,"EIA 2024 primary energy consumption (94.2 quads); converted to TW"

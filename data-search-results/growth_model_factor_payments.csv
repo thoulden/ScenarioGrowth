@@ -1,0 +1,29 @@
+﻿Growth Model Factor Payments: Empirical Starting Values (2024-2025),,,,,,
+,,,,,,
+Parameter,United States,World,Confidence,Source,Year,Notes/Caveats
+"1. GDP / GWP (nominal, current USD)",$31.1 trillion,$111-117 trillion,High,"US: BEA NIPA Table 1.1.5 (FRED GDP series)
+World: IMF World Economic Outlook","US: Q3 2025
+World: 2024-25",US is SAAR. World: IMF projects $117T for 2025; $111T actual for 2024
+"2. Total Capital Stock (net, reproducible)",$89-93 trillion,$350-400 trillion,"US: High
+World: Low","US: BEA Fixed Assets Accounts Table 5.10 (K100701)
+World: Penn World Table 11.0 (cn/rnna series) + IMF ICSD","US: 2023-24
+World: 2023","Net stock = private + govt fixed assets (structures, equipment, IP). Excludes land. World is rough aggregation"
+3. Capital-Output Ratio (K/Y),2.9-3.0,3.0-3.5,"US: High
+World: Medium","Derived: K/Y from rows 1-2
+Cross-check: Penn World Table",2023-24,This is NET K/Y. Gross K/Y ~4.0-4.5. Consistent with PWT country data
+4. Capital Share of GDP (gross),44-46%,35-45%,High,"US: BLS Productivity & Costs (1 - labor share)
+World: Penn World Table labsh, ILO","US: Q3 2025
+World: 2023",US labor share hit record low 53.8% Q3 2025 → capital share ~46%. This is GROSS (includes depreciation)
+   - Depreciation (% of GDP),15-16%,12-16%,High,"US: BEA Consumption of Fixed Capital
+World: OECD, IMF estimates",2023-24,Implies NET capital share ~28-31% for US
+5. Land Rents (% of GDP),3-10%,4-10%,Low,"Narrow: BEA rental income of persons (~3.5%)
+Broad: Larson (2015), Gaffney estimates",2024 / 2015,MOST UNCERTAIN. NIPA understates true land rents. Larson (2015) est. land value ~$23T → implicit rents ~8-10%
+6. Energy Expenditure (% of GDP),5-7%,7-10%,High,"US: EIA State Energy Data System (SEDS)
+World: IEA World Energy Outlook",2022-24,2022 elevated (6.7%) due to Ukraine war. 2023-24 ~5-6%. Includes all end-use energy
+7. Residual Capital Share (derived),29-35%,20-30%,Medium,Calculated: Capital share − Land rents − Energy,Derived,"Return to reproducible capital (structures, equipment, IP). Range depends on land rent assumption"
+8. Implied Gross Return to Capital (r),10-16%,8-15%,Medium,Calculated: (Capital income) / (Capital stock),Derived,Gross r ~15-16%; Net r ~10%; Residual r ~10-12%. Consistent with observed corporate/RE returns
+,,,,,,
+Confidence Legend:,,,,,,
+High,"Official statistical agency data, well-established methodology",,,,,
+Medium,"Derived from high-confidence inputs, or cross-country aggregation",,,,,
+Low,"Significant measurement challenges, wide range of estimates",,,,,

@@ -1,5 +1,15 @@
 // Income distribution: household initialization, Lorenz curves, smooth distributions, Gini
 
+// Region-aware fallback for working-age population (used when spreadsheet data missing)
+function _defaultWorkingAgePop() {
+    if (typeof getRegionMode === 'function') {
+        var mode = getRegionMode();
+        if (mode === 'china') return 990e6;
+        if (mode === 'global') return 5200e6;
+    }
+    return 270e6;  // US default
+}
+
 // Interpolate Lorenz curve from empirical CDF breakpoints
 // cdfBreaks: [L1, L25, L50, L75, L90, L99, L999]
 // Piecewise-linear Lorenz interpolation from 9 knot points
@@ -194,7 +204,7 @@ function computeSmoothDistribution(r, params) {
     var total_trust = r.trust_income || 0;
 
     // Use working-age population as denominator (per-person, not per-household)
-    var N_pop = r.WorkingAgePop || 270e6;
+    var N_pop = r.WorkingAgePop || _defaultWorkingAgePop();
 
     // Taxes and UBI (per working-age person -- UBI goes to everyone equally)
     var d_tau_k = params.dist_tau_k || 0, d_tau_AI = params.dist_tau_AI || 0, d_tau_R = params.dist_tau_R || 0;
@@ -207,7 +217,10 @@ function computeSmoothDistribution(r, params) {
         net_robot = total_robot * (1 - d_tau_R);
         // UBI: tax revenue distributed to all working-age persons equally
         var isUS = typeof isUSMode === 'function' && isUSMode();
-        var ubi_share = isUS ? (params.dist_ubi_share_us || 0) : (params.dist_ubi_share_world || 0);
+        var isChina = typeof isChinaMode === 'function' && isChinaMode();
+        var ubi_share = isUS ? (params.dist_ubi_share_us || 0) :
+                        isChina ? (params.dist_ubi_share_china || 0) :
+                        (params.dist_ubi_share_world || 0);
         var T_total = d_tau_k * (r.r || 0) * (r.K_Y || 0) +
                       d_tau_AI * (r.qc || 0) * (r.AI_cog || 0) +
                       d_tau_R * (r.qr || 0) * (r.R_phys || 0);
@@ -347,7 +360,7 @@ function computeIncomeDistribution(results, households, params) {
         var d_tau_AI = params.dist_tau_AI || 0;
         var d_tau_R = params.dist_tau_R || 0;
         var d_ubi_start = params.dist_ubi_start_year || 9999;
-        var workingAgePop = r.WorkingAgePop || 270e6;
+        var workingAgePop = r.WorkingAgePop || _defaultWorkingAgePop();
         var ubi_per_person = computeUBIPerPerson(year, r, params, workingAgePop);
 
         // Use the participation rate already computed by the solver (includes smoothing)

@@ -34,28 +34,47 @@ function bisectRoot(func, lo, hi, maxIter = 30, tol = 1e-6) {
 }
 
 // Solve for interest rate from capital market clearing
-// With CES: K_Y found by bisection where A x dQ/dK(K_Y, L_eff) = r
-// With Cobb-Douglas: K_Y = alpha*Y/r
-function solveROneT(Kt, Yt, q_c, q_p, LAI, LR, params, L_eff, A_tfp) {
+// With CES (σ_K≠1): K_Y found by bisection where A × dQ/dK(K_Y, L_eff) = r
+// With Cobb-Douglas (σ_K=1): K_Y = alpha*Y/r
+// When K_eff nesting is enabled, K_eff = CES(K_Y, Rp) replaces K_Y as capital input
+function solveROneT(Kt, Yt, q_c, q_p, LAI, LR, params, L_eff, A_tfp, Rp, phi) {
     const { alpha, delta_K, delta_C, delta_R, tau_k, tau_AI, tau_R } = params;
     const sigma_K = params.sigma_K || 1.0;
     const K0_base = params.K0_base || 0;
     const Leff0_base = params.Leff0_base || 0;
+    const useKeffNest = params.enable_K_eff_nest;
     const one_minus_tau_k = 1.0 - tau_k;
+    // Rp_K: capital-allocated robots (only these go into K_eff)
+    var Rp_K = (useKeffNest && phi != null && phi < 1.0) ? Math.max((1.0 - phi) * Rp, TINY) : 0;
 
-    // Helper: find K_Y given r (CES requires bisection)
+    // Helper: find K_Y given r
     function KY_from_r(r) {
-        if (Math.abs(sigma_K - 1.0) < 1e-10) {
-            return alpha * Yt / r;
+        // K_eff nesting: bisect for K_Y where alpha*Y/K_eff(K_Y,Rp_K) * dKeff/dK = r
+        if (useKeffNest && Rp_K > TINY) {
+            var K_Y_base = params.K_Y_base || Kt;
+            var Rp_base = params.Rp_base || 1.0;
+            return bisectRoot(function(Ktest) {
+                var K_norm = Ktest / Math.max(K_Y_base, TINY);
+                var Rp_norm = Rp_K / Math.max(Rp_base, TINY);
+                var Q_norm = cesTaskAgg(K_norm, Rp_norm, params.nu_K, params.sigma_Keff);
+                var K_eff = Q_norm * K_Y_base;
+                var mp_Keff = alpha * Yt / K_eff;
+                var dKeff_dK = dQdxFirst(Q_norm, K_norm, params.nu_K, params.sigma_Keff);
+                return mp_Keff * dKeff_dK - r;
+            }, TINY, Kt * 10, 120, 1e-12);
         }
-        // Bisect: find K where A_tfp * dQ/d(K/K₀) / K₀ = r
-        const K0 = (K0_base > 0) ? K0_base : 1.0;
-        const L_norm = (Leff0_base > 0) ? L_eff / Leff0_base : L_eff;
-        return bisectRoot(function(Ktest) {
-            var K_norm = Ktest / K0;
-            var Q = cesKL(K_norm, L_norm, alpha, sigma_K);
-            return A_tfp * dCesKL_dx(Q, K_norm, alpha, sigma_K) / K0 - r;
-        }, TINY, Kt * 10, 120, 1e-12);
+        // CES (σ_K ≠ 1): bisect for K_Y where A * dQ/dK = r
+        if (Math.abs(sigma_K - 1.0) >= 1e-10) {
+            const K0 = (K0_base > 0) ? K0_base : 1.0;
+            const L_norm = (Leff0_base > 0) ? L_eff / Leff0_base : L_eff;
+            return bisectRoot(function(Ktest) {
+                var K_norm = Ktest / K0;
+                var Q = cesKL(K_norm, L_norm, alpha, sigma_K);
+                return A_tfp * dCesKL_dx(Q, K_norm, alpha, sigma_K) / K0 - r;
+            }, TINY, Kt * 10, 120, 1e-12);
+        }
+        // Cobb-Douglas: K_Y = alpha*Y/r
+        return alpha * Yt / r;
     }
 
     // Minimum r to keep denominators positive
@@ -121,20 +140,33 @@ function solveROneT(Kt, Yt, q_c, q_p, LAI, LR, params, L_eff, A_tfp) {
 }
 
 // Compute capital allocations given r
-// With CES: K_Y found by bisection where A x dQ/dK(K_Y, L_eff) = r
-// With Cobb-Douglas: K_Y = alpha*Y/r
-function computeCapitalAllocations(Kt, Yt, r, q_c, q_p, LAI, LR, params, L_eff, A_tfp) {
+// CES, Cobb-Douglas, or K_eff nesting paths for K_Y
+function computeCapitalAllocations(Kt, Yt, r, q_c, q_p, LAI, LR, params, L_eff, A_tfp, Rp, phi) {
     const { alpha, delta_K, delta_C, delta_R, tau_k, tau_AI, tau_R } = params;
     const sigma_K = params.sigma_K || 1.0;
     const K0_base = params.K0_base || 0;
     const Leff0_base = params.Leff0_base || 0;
+    const useKeffNest = params.enable_K_eff_nest;
     const one_minus_tau_k = 1.0 - tau_k;
+    var Rp_K = (useKeffNest && phi != null && phi < 1.0) ? Math.max((1.0 - phi) * Rp, TINY) : 0;
 
-    // Find K_Y given r (CES requires bisection)
+    // Find K_Y given r
     let K_Y;
-    if (Math.abs(sigma_K - 1.0) < 1e-10) {
-        K_Y = alpha * Yt / r;
-    } else {
+    if (useKeffNest && Rp_K > TINY) {
+        // K_eff nesting: bisect for K_Y using only capital-allocated robots
+        var K_Y_base = params.K_Y_base || Kt;
+        var Rp_base = params.Rp_base || 1.0;
+        K_Y = bisectRoot(function(Ktest) {
+            var K_norm = Ktest / Math.max(K_Y_base, TINY);
+            var Rp_norm = Rp_K / Math.max(Rp_base, TINY);
+            var Q_norm = cesTaskAgg(K_norm, Rp_norm, params.nu_K, params.sigma_Keff);
+            var K_eff = Q_norm * K_Y_base;
+            var mp_Keff = alpha * Yt / K_eff;
+            var dKeff_dK = dQdxFirst(Q_norm, K_norm, params.nu_K, params.sigma_Keff);
+            return mp_Keff * dKeff_dK - r;
+        }, TINY, Kt * 10, 120, 1e-12);
+    } else if (Math.abs(sigma_K - 1.0) >= 1e-10) {
+        // CES: bisect for K_Y
         const K0 = (K0_base > 0) ? K0_base : 1.0;
         const L_norm = (Leff0_base > 0) ? L_eff / Leff0_base : L_eff;
         K_Y = bisectRoot(function(Ktest) {
@@ -142,6 +174,9 @@ function computeCapitalAllocations(Kt, Yt, r, q_c, q_p, LAI, LR, params, L_eff, 
             var Q = cesKL(K_norm, L_norm, alpha, sigma_K);
             return A_tfp * dCesKL_dx(Q, K_norm, alpha, sigma_K) / K0 - r;
         }, TINY, Kt * 10, 120, 1e-12);
+    } else {
+        // Cobb-Douglas
+        K_Y = alpha * Yt / r;
     }
     let K_C = 0.0;
     if (LAI > 0 && isFinite(q_c)) {
@@ -180,8 +215,49 @@ function humanSplit(L, z, kappa, omega) {
 
 // Prices given mu and wage ratio z (which determines Hc, Hp via human split)
 // PY is the shadow price of final output (used in trust mode)
-function pricesGivenMuAndZ(Y, K, L, AIc, Rp, mu_h_c, mu_h_p, z, params, PY) {
+// Supports CES (σ_K≠1), Cobb-Douglas (σ_K=1), and optional K_eff nesting
+// Solve for the robot split φ where labor-channel MP = capital-channel MP.
+// φ = fraction of Rp going to labor; (1-φ) goes to K_eff.
+// Called once per φ-iteration (not per z-step), so speed is fine.
+function solveRobotPhi(K, Hp, Rp, L_cog, mu_h_p, sig_p, theta, eps, params, Y, alpha) {
+    if (Rp < TINY || !params.enable_K_eff_nest) return 1.0;
+    var K_Y_base = params.K_Y_base || K;
+    var Rp_base = params.Rp_base || 1.0;
+    var nu_K = params.nu_K;
+    var sigma_Keff = params.sigma_Keff;
+
+    return bisectRoot(function(phi) {
+        var Rp_L = Math.max(phi * Rp, TINY);
+        var Rp_K = Math.max((1.0 - phi) * Rp, TINY);
+
+        // Labor channel: L_phys → L_eff → Y
+        var L_phys = cesTaskAgg(Hp, Rp_L, mu_h_p, sig_p);
+        var L_eff = cesTaskAgg(L_cog, L_phys, theta, eps);
+        var mp_Leff = (1.0 - alpha) * Y / L_eff;
+        var dLeff_dLphys = dQdySecond(L_eff, L_phys, theta, eps);
+        var dLphys_dRpL = dQdySecond(L_phys, Rp_L, mu_h_p, sig_p);
+        var mp_labor = mp_Leff * dLeff_dLphys * dLphys_dRpL;
+
+        // Capital channel: K_eff → Y
+        var Rp_K_norm = Rp_K / Math.max(Rp_base, TINY);
+        var K_norm = K / Math.max(K_Y_base, TINY);
+        var Q_norm = cesTaskAgg(K_norm, Rp_K_norm, nu_K, sigma_Keff);
+        var K_eff = Q_norm * K_Y_base;
+        var mp_Keff = alpha * Y / K_eff;
+        var dKeff_dRpK = (K_Y_base / Math.max(Rp_base, TINY)) * dQdySecond(Q_norm, Rp_K_norm, nu_K, sigma_Keff);
+        var mp_capital = mp_Keff * dKeff_dRpK;
+
+        return Math.log(Math.max(mp_labor, TINY)) - Math.log(Math.max(mp_capital, TINY));
+    }, 1e-4, 1.0 - 1e-4, 30, 1e-4);
+}
+
+// Prices given mu and wage ratio z (which determines Hc, Hp via human split)
+// PY is the shadow price of final output (used in trust mode)
+// Supports CES (σ_K≠1), Cobb-Douglas (σ_K=1), and optional K_eff nesting
+// phi: robot split — fraction of Rp going to labor (rest to K_eff). Default 1.0.
+function pricesGivenMuAndZ(Y, K, L, AIc, Rp, mu_h_c, mu_h_p, z, params, PY, phi) {
     PY = PY || 1.0;
+    phi = (phi != null) ? phi : 1.0;
     const { alpha, theta, eps, sig_c, sig_p, kappa, omega } = params;
     const sigma_K = params.sigma_K || 1.0;
 
@@ -190,22 +266,57 @@ function pricesGivenMuAndZ(Y, K, L, AIc, Rp, mu_h_c, mu_h_p, z, params, PY) {
     const Hc = split.Hc;
     const Hp = split.Hp;
 
-    // Nests
+    // Robot split: when K_eff nesting is active and φ < 1, split Rp
+    const useKeffNest = params.enable_K_eff_nest;
+    var Rp_L, Rp_K;
+    if (useKeffNest && phi < 1.0 - 1e-9) {
+        Rp_L = Math.max(phi * Rp, TINY);
+        Rp_K = Math.max((1.0 - phi) * Rp, TINY);
+    } else {
+        Rp_L = Rp;
+        Rp_K = 0;
+    }
+
+    // Nests — L_phys uses only the labor-allocated robots
     const L_cog = cesTaskAgg(Hc, AIc, mu_h_c, sig_c);
-    const L_phys = cesTaskAgg(Hp, Rp, mu_h_p, sig_p);
+    const L_phys = cesTaskAgg(Hp, Rp_L, mu_h_p, sig_p);
     const L_eff = cesTaskAgg(L_cog, L_phys, theta, eps);
 
-    // Infer A and marginal products using CES or Cobb-Douglas
+    // Compute K_eff — only the capital-allocated robots go in
+    let K_eff, K_norm_keff, Rp_K_norm_keff, Q_norm_keff;
+    let K_Y_base_val, Rp_base_val;
+    if (useKeffNest && Rp_K > TINY) {
+        K_Y_base_val = params.K_Y_base || K;
+        Rp_base_val = params.Rp_base || 1.0;
+        K_norm_keff = K / Math.max(K_Y_base_val, TINY);
+        Rp_K_norm_keff = Rp_K / Math.max(Rp_base_val, TINY);
+        Q_norm_keff = cesTaskAgg(K_norm_keff, Rp_K_norm_keff, params.nu_K, params.sigma_Keff);
+        K_eff = Q_norm_keff * K_Y_base_val;
+    } else {
+        K_eff = K;
+    }
+
+    // Compute A, r_raw, mp_Leff depending on production function mode
     const K0_base = params.K0_base || 0;
     const Leff0_base = params.Leff0_base || 0;
     let A, r_raw, mp_Leff;
-    if (Math.abs(sigma_K - 1.0) < 1e-10) {
-        // Cobb-Douglas
+
+    if (useKeffNest && Rp_K > TINY) {
+        // K_eff nesting: always Cobb-Douglas at top level with K_eff
+        A = Y / (Math.pow(K_eff, alpha) * Math.pow(L_eff, 1.0 - alpha));
+        const mp_Keff = alpha * Y / K_eff;
+        mp_Leff = (1.0 - alpha) * Y / L_eff;
+
+        // dKeff/dK via chain rule (base factors cancel)
+        const dKeff_dK = dQdxFirst(Q_norm_keff, K_norm_keff, params.nu_K, params.sigma_Keff);
+        r_raw = mp_Keff * dKeff_dK;
+    } else if (Math.abs(sigma_K - 1.0) < 1e-10) {
+        // Cobb-Douglas (no nesting or φ=1)
         A = Y / (Math.pow(K, alpha) * Math.pow(L_eff, 1.0 - alpha));
         r_raw = alpha * Y / K;
         mp_Leff = (1.0 - alpha) * Y / L_eff;
     } else {
-        // CES with normalized inputs
+        // CES with normalized inputs (old prod func mode)
         const K_norm = (K0_base > 0) ? K / K0_base : K;
         const L_norm = (Leff0_base > 0) ? L_eff / Leff0_base : L_eff;
         const Q = cesKL(K_norm, L_norm, alpha, sigma_K);
@@ -215,7 +326,7 @@ function pricesGivenMuAndZ(Y, K, L, AIc, Rp, mu_h_c, mu_h_p, z, params, PY) {
     }
     const r = r_raw;
 
-    // Chain rule derivatives
+    // Chain rule derivatives through labor nests (using Rp_L, not total Rp)
     const dLeff_dLcog = dQdxFirst(L_eff, L_cog, theta, eps);
     const dLeff_dLphys = dQdySecond(L_eff, L_phys, theta, eps);
 
@@ -223,22 +334,29 @@ function pricesGivenMuAndZ(Y, K, L, AIc, Rp, mu_h_c, mu_h_p, z, params, PY) {
     const dLcog_dAIc = dQdySecond(L_cog, AIc, mu_h_c, sig_c);
 
     const dLphys_dHp = dQdxFirst(L_phys, Hp, mu_h_p, sig_p);
-    const dLphys_dRp = dQdySecond(L_phys, Rp, mu_h_p, sig_p);
+    const dLphys_dRp = dQdySecond(L_phys, Rp_L, mu_h_p, sig_p);
+
+    // Robot wage: single channel through labor nest (no dual-channel!)
+    // At equilibrium φ, this equals the capital channel marginal product.
+    const qr_per_unit = mp_Leff * dLeff_dLphys * dLphys_dRp;
 
     // Scale wages by PY (shadow price from trust layer)
     const wc = PY * mp_Leff * dLeff_dLcog * dLcog_dHc;
     const qc = PY * mp_Leff * dLeff_dLcog * dLcog_dAIc;
     const wp = PY * mp_Leff * dLeff_dLphys * dLphys_dHp;
-    const qr = PY * mp_Leff * dLeff_dLphys * dLphys_dRp;
+    const qr = PY * qr_per_unit;
 
     const profit = Y - (r * K + wc * Hc + wp * Hp + qc * AIc + qr * Rp);
 
-    return { A, r, wc, wp, qc, qr, Hc, Hp, ell_c: split.ell_c, profit, L_eff, L_cog, L_phys };
+    return { A, r, wc, wp, qc, qr, Hc, Hp, ell_c: split.ell_c, profit, L_eff, L_cog, L_phys, K_eff, phi, Rp_L, Rp_K };
 }
 
 // Inner solver: fixed-point iteration for z = wc/wp
-// When trustParams is provided, co-iterates on H_trust to equalize trust_wage and wbar.
-function solveZForMu(Y, K, L_total, AIc, Rp, mu_h_c, mu_h_p, params, z0, damp, maxIter, tol, PY_fixed, trustParams, bar_auto_c, bar_auto_p) {
+// When trustParams is provided, co-iterates on H_trust using inelastic supply curve:
+//   H_trust_target = H_trust_base × (trust_wage / wbar)^eps_trust
+// eps_trust (supply elasticity) is small (0.1-0.3) → trust supply is inelastic,
+// capturing occupational licensing / credential constraints.
+function solveZForMu(Y, K, L_total, AIc, Rp, mu_h_c, mu_h_p, params, z0, damp, maxIter, tol, PY_fixed, trustParams, bar_auto_c, bar_auto_p, phi) {
     z0 = z0 || 1.0;
     damp = damp || 0.6;
     maxIter = maxIter || 30;
@@ -248,8 +366,9 @@ function solveZForMu(Y, K, L_total, AIc, Rp, mu_h_c, mu_h_p, params, z0, damp, m
     bar_auto_p = bar_auto_p || 0;
 
     var trustActive = trustParams && trustParams.active;
-    var trustAnchored = trustActive && trustParams.anchor_H_trust;
-    var H_trust = trustActive ? (trustParams.prev_H_trust || trustParams.H_trust_seed || L_total * 0.01) : 0;
+    var H_trust_base = trustActive ? (trustParams.H_trust_seed || L_total * 0.01) : 0;
+    var H_trust = trustActive ? (trustParams.prev_H_trust || H_trust_base) : 0;
+    var eps_trust = trustActive ? (trustParams.eps_trust || 0.2) : 0;
     var trust_wage = 0;
     var trust_income = 0;
     var X_trust = 0;
@@ -284,49 +403,52 @@ function solveZForMu(Y, K, L_total, AIc, Rp, mu_h_c, mu_h_p, params, z0, damp, m
         }
 
         const z = Math.exp(logz);
-        const out = pricesGivenMuAndZ(Y, K, L, AIc, Rp, mu_h_c, mu_h_p, z, params, PY);
+        const out = pricesGivenMuAndZ(Y, K, L, AIc, Rp, mu_h_c, mu_h_p, z, params, PY, phi);
 
         // z-iteration uses unpinned wages
         const z_hat = out.wc / out.wp;
         const logz_hat = Math.log(z_hat);
 
-        // Co-iterate on H_trust: adjust toward wage equalization
+        // Co-iterate on H_trust: inelastic supply curve
         var z_converged = Math.abs(logz_hat - logz) < tol;
         var trust_converged = true;
 
         if (trustActive) {
-            if (trustAnchored) {
-                trust_converged = true;
-            } else {
-                var wc_eff = out.wc;
-                if (bar_auto_c >= 0.90 && out.wc > out.qc) {
-                    var bc = Math.min(1.0, (bar_auto_c - 0.90) / 0.10);
-                    wc_eff = out.wc * (1.0 - bc) + out.qc * bc;
-                }
-                var wp_eff = out.wp;
-                if (bar_auto_p >= 0.90 && out.wp > out.qr) {
-                    var bp = Math.min(1.0, (bar_auto_p - 0.90) / 0.10);
-                    wp_eff = out.wp * (1.0 - bp) + out.qr * bp;
-                }
-                var wbar = computeAverageWage(wc_eff, wp_eff, out.ell_c);
-                var tw = trust_wage;
+            // Compute effective wbar (blending toward AI prices near full automation)
+            var wc_eff = out.wc;
+            if (bar_auto_c >= 0.90 && out.wc > out.qc) {
+                var bc = Math.min(1.0, (bar_auto_c - 0.90) / 0.10);
+                wc_eff = out.wc * (1.0 - bc) + out.qc * bc;
+            }
+            var wp_eff = out.wp;
+            if (bar_auto_p >= 0.90 && out.wp > out.qr) {
+                var bp = Math.min(1.0, (bar_auto_p - 0.90) / 0.10);
+                wp_eff = out.wp * (1.0 - bp) + out.qr * bp;
+            }
+            var wbar = computeAverageWage(wc_eff, wp_eff, out.ell_c);
 
-                if (wbar > TINY && tw > TINY) {
-                    var ratio = tw / wbar;
-                    var log_H = Math.log(Math.max(H_trust, 1));
-                    var log_H_target = log_H + trustParams.sigma_trust * Math.log(ratio);
-                    var H_trust_new = Math.exp(log_H_target);
-                    H_trust_new = Math.max(1, Math.min(H_trust_new, L_total - 1));
-                    trust_converged = Math.abs(Math.log(Math.max(H_trust_new, 1)) - log_H) < tol;
-                    H_trust = Math.exp((1.0 - trustDamp) * log_H + trustDamp * Math.log(Math.max(H_trust_new, 1)));
-                    H_trust = Math.max(1, Math.min(H_trust, L_total - 1));
-                } else if (wbar <= TINY && tw > TINY) {
-                    H_trust = L_total - 1;
-                    trust_converged = false;
-                } else {
-                    H_trust = 0;
-                    trust_converged = true;
-                }
+            if (wbar > TINY && trust_wage > TINY) {
+                // Inelastic supply curve: H_target = H_base × (trust_wage / wbar)^eps_trust
+                // At eps_trust=0: fully fixed at H_base (exogenous)
+                // At eps_trust→∞: free equalization (old behavior)
+                // At eps_trust=0.2: 100% premium → ~15% more workers (inelastic)
+                var premium_ratio = trust_wage / wbar;
+                var H_trust_target = H_trust_base * Math.pow(premium_ratio, eps_trust);
+                H_trust_target = Math.max(1, Math.min(H_trust_target, L_total - 1));
+
+                var log_H = Math.log(Math.max(H_trust, 1));
+                var log_H_target = Math.log(Math.max(H_trust_target, 1));
+                trust_converged = Math.abs(log_H_target - log_H) < tol;
+                H_trust = Math.exp((1.0 - trustDamp) * log_H + trustDamp * log_H_target);
+                H_trust = Math.max(1, Math.min(H_trust, L_total - 1));
+            } else if (wbar <= TINY && trust_wage > TINY) {
+                // Regular wages collapsed → trust absorbs as much as supply allows
+                var H_trust_target = H_trust_base * Math.pow(1000, eps_trust);  // large premium
+                H_trust = Math.min(H_trust_target, L_total - 1);
+                trust_converged = false;
+            } else {
+                H_trust = H_trust_base;  // No signal → stay at baseline
+                trust_converged = true;
             }
         }
 
@@ -347,7 +469,7 @@ function solveZForMu(Y, K, L_total, AIc, Rp, mu_h_c, mu_h_p, params, z0, damp, m
     var L_final = trustActive ? Math.max(L_total - H_trust, TINY) : L_total;
     var PY_final = trustActive ? PY_trust : PY_fixed;
     const z = Math.exp(logz);
-    const out = pricesGivenMuAndZ(Y, K, L_final, AIc, Rp, mu_h_c, mu_h_p, z, params, PY_final);
+    const out = pricesGivenMuAndZ(Y, K, L_final, AIc, Rp, mu_h_c, mu_h_p, z, params, PY_final, phi);
     out.z = z;
     out.z_converged = false;
     out.H_trust = H_trust;
@@ -359,8 +481,8 @@ function solveZForMu(Y, K, L_total, AIc, Rp, mu_h_c, mu_h_p, params, z0, damp, m
 }
 
 // Main solver for one year
-// trustParams: { s_trust, sigma_trust, C_trust, active } - trusted labor sector
-// H_trust is solved endogenously inside solveZForMu via co-iteration with z.
+// trustParams: { s_trust, sigma_trust, C_trust, eps_trust, H_trust_seed, active } - trusted labor sector
+// H_trust determined by inelastic supply curve inside solveZForMu.
 function solveMuOneYear(row, params, trustParams) {
     trustParams = trustParams || null;
 
@@ -388,62 +510,81 @@ function solveMuOneYear(row, params, trustParams) {
     // PY from trust layer each step. When trust is NOT active, PY = 1.0.
     var PY_pre = 1.0;
     var _tp = trustActive ? trustParams : null;
+    const useKeffNest = params.enable_K_eff_nest;
 
-    let out = solveZForMu(Y, K, H_cog, AIc, Rp, mu_h_c, mu_h_p, params, 1.0, 0.6, 30, 1e-4, PY_pre, _tp, bar_auto_c, bar_auto_p);
+    // Robot split iteration: when K_eff nesting is active, iterate on φ (fraction
+    // of Rp going to labor vs capital). φ=1.0 when nesting is off.
+    // Each φ iteration runs the full z + mu solve with a fixed φ, then updates φ.
+    var phi_est = 1.0;  // start with all robots in labor
+    var maxPhiIter = useKeffNest ? 4 : 1;
 
-    // Determine if bisection is needed for each sector.
-    // At the frontier (mu_min), if wc < qc humans are cheaper => bisect up to find wc = qc.
-    // At the frontier, if wc >= qc humans are more expensive => at full automation this is
-    // expected (scarce humans have high marginal product). We must STILL bisect to find the
-    // equilibrium mu where wc = qc, since that's the no-arbitrage condition.
-    // Only skip bisection when automation is low AND humans are already more expensive.
-    const need_c = out.wc < out.qc || bar_auto_c >= 0.50;
-    const need_p = out.wp < out.qr || bar_auto_p >= 0.50;
+    var final, mu_c_cur, mu_p_cur;
+    var need_c, need_p;
 
-    // Coordinate bisection on mu's
-    let mu_c_cur = mu_h_c;
-    let mu_p_cur = mu_h_p;
+    for (var phiIter = 0; phiIter < maxPhiIter; phiIter++) {
 
-    for (let iter = 0; iter < 30; iter++) {
-        const prev_c = mu_c_cur;
-        const prev_p = mu_p_cur;
+        let out = solveZForMu(Y, K, H_cog, AIc, Rp, mu_h_c, mu_h_p, params, 1.0, 0.6, 30, 1e-4, PY_pre, _tp, bar_auto_c, bar_auto_p, phi_est);
 
-        if (need_c) {
-            const f = (mu) => {
-                const o = solveZForMu(Y, K, H_cog, AIc, Rp, mu, mu_p_cur, params, 1.0, 0.6, 30, 1e-4, PY_pre, _tp, bar_auto_c, bar_auto_p);
-                return Math.log(o.wc / o.qc);
-            };
-            var f_lo = f(mu_h_c_min);
-            var f_hi = f(1.0 - 1e-9);
-            if (f_lo * f_hi < 0) {
-                mu_c_cur = bisectRoot(f, mu_h_c_min, 1.0 - 1e-9);
-            } else {
-                // No sign change — stay at frontier
-                mu_c_cur = mu_h_c_min;
+        // Determine if bisection is needed for each sector.
+        need_c = out.wc < out.qc || bar_auto_c >= 0.50;
+        need_p = out.wp < out.qr || bar_auto_p >= 0.50;
+
+        // Coordinate bisection on mu's
+        mu_c_cur = mu_h_c;
+        mu_p_cur = mu_h_p;
+
+        for (let iter = 0; iter < 30; iter++) {
+            const prev_c = mu_c_cur;
+            const prev_p = mu_p_cur;
+
+            if (need_c) {
+                const f = (mu) => {
+                    const o = solveZForMu(Y, K, H_cog, AIc, Rp, mu, mu_p_cur, params, 1.0, 0.6, 30, 1e-4, PY_pre, _tp, bar_auto_c, bar_auto_p, phi_est);
+                    return Math.log(o.wc / o.qc);
+                };
+                var f_lo = f(mu_h_c_min);
+                var f_hi = f(1.0 - 1e-9);
+                if (f_lo * f_hi < 0) {
+                    mu_c_cur = bisectRoot(f, mu_h_c_min, 1.0 - 1e-9);
+                } else {
+                    mu_c_cur = mu_h_c_min;
+                }
+            }
+
+            if (need_p) {
+                const g = (mu) => {
+                    const o = solveZForMu(Y, K, H_cog, AIc, Rp, mu_c_cur, mu, params, 1.0, 0.6, 30, 1e-4, PY_pre, _tp, bar_auto_c, bar_auto_p, phi_est);
+                    return Math.log(o.wp / o.qr);
+                };
+                var g_lo = g(mu_h_p_min);
+                var g_hi = g(1.0 - 1e-9);
+                if (g_lo * g_hi < 0) {
+                    mu_p_cur = bisectRoot(g, mu_h_p_min, 1.0 - 1e-9);
+                } else {
+                    mu_p_cur = mu_h_p_min;
+                }
+            }
+
+            if (Math.max(Math.abs(mu_c_cur - prev_c), Math.abs(mu_p_cur - prev_p)) < 1e-4) {
+                break;
             }
         }
 
-        if (need_p) {
-            const g = (mu) => {
-                const o = solveZForMu(Y, K, H_cog, AIc, Rp, mu_c_cur, mu, params, 1.0, 0.6, 30, 1e-4, PY_pre, _tp, bar_auto_c, bar_auto_p);
-                return Math.log(o.wp / o.qr);
-            };
-            var g_lo = g(mu_h_p_min);
-            var g_hi = g(1.0 - 1e-9);
-            if (g_lo * g_hi < 0) {
-                mu_p_cur = bisectRoot(g, mu_h_p_min, 1.0 - 1e-9);
-            } else {
-                mu_p_cur = mu_h_p_min;
-            }
-        }
+        // Final solve with converged mu values at current φ
+        final = solveZForMu(Y, K, H_cog, AIc, Rp, mu_c_cur, mu_p_cur, params, 1.0, 0.6, 30, 1e-4, PY_pre, _tp, bar_auto_c, bar_auto_p, phi_est);
 
-        if (Math.max(Math.abs(mu_c_cur - prev_c), Math.abs(mu_p_cur - prev_p)) < 1e-4) {
-            break;
+        // If K_eff nesting active, update φ from equilibrium condition
+        if (useKeffNest && phiIter < maxPhiIter - 1) {
+            var phi_new = solveRobotPhi(K, final.Hp, Rp, final.L_cog, mu_p_cur, params.sig_p, params.theta, params.eps, params, Y, params.alpha);
+            if (Math.abs(phi_new - phi_est) < 1e-3) {
+                phi_est = phi_new;
+                // Re-do final solve with converged φ
+                final = solveZForMu(Y, K, H_cog, AIc, Rp, mu_c_cur, mu_p_cur, params, 1.0, 0.6, 30, 1e-4, PY_pre, _tp, bar_auto_c, bar_auto_p, phi_est);
+                break;
+            }
+            phi_est = 0.5 * phi_est + 0.5 * phi_new;  // damped update
         }
     }
-
-    // Final solve with converged mu values
-    const final = solveZForMu(Y, K, H_cog, AIc, Rp, mu_c_cur, mu_p_cur, params, 1.0, 0.6, 30, 1e-4, PY_pre, _tp, bar_auto_c, bar_auto_p);
 
     // No-arbitrage: at full automation, human wage cannot exceed machine wage
     if (bar_auto_c >= 1.0 - 1e-6 && final.wc > final.qc) {
@@ -470,18 +611,24 @@ function solveMuOneYear(row, params, trustParams) {
     let Y_final = Y_after_trust;
 
     // Solve for interest rate from capital market clearing
-    const r = solveROneT(K, Y, final.qc, final.qr, AIc, Rp, params, final.L_eff, final.A);
-    const capAlloc = computeCapitalAllocations(K, Y, r, final.qc, final.qr, AIc, Rp, params, final.L_eff, final.A);
+    // Pass Rp for K_eff nesting bisection
+    const r = solveROneT(K, Y, final.qc, final.qr, AIc, Rp, params, final.L_eff, final.A, Rp, phi_est);
+    const capAlloc = computeCapitalAllocations(K, Y, r, final.qc, final.qr, AIc, Rp, params, final.L_eff, final.A, Rp, phi_est);
 
     // Factor income shares
     const alpha = params.alpha;
     const sigma_K_share = params.sigma_K || 1.0;
-    const K0_base_share = params.K0_base || 0;
-    const Leff0_base_share = params.Leff0_base || 0;
     let ces_capital_share;
-    if (Math.abs(sigma_K_share - 1.0) < 1e-10) {
+    if (useKeffNest) {
+        // With K_eff nesting, capital share = r * K_Y / Y (from solved prices)
+        ces_capital_share = Math.max(0, Math.min(1, r * capAlloc.K_Y / Math.max(Y, TINY)));
+    } else if (Math.abs(sigma_K_share - 1.0) < 1e-10) {
+        // Pure Cobb-Douglas: capital share = alpha
         ces_capital_share = alpha;
     } else {
+        // CES: capital share varies with K/L ratio
+        const K0_base_share = params.K0_base || 0;
+        const Leff0_base_share = params.Leff0_base || 0;
         const rho = (sigma_K_share - 1.0) / sigma_K_share;
         const K_n = (K0_base_share > 0) ? K / K0_base_share : K;
         const L_n = (Leff0_base_share > 0) ? final.L_eff / Leff0_base_share : final.L_eff;
@@ -542,12 +689,24 @@ function solveMuOneYear(row, params, trustParams) {
         T_capital_per_worker,
         T_AI_per_worker,
         T_robot_per_worker,
-        T_total_per_worker: T_capital_per_worker + T_AI_per_worker + T_robot_per_worker
+        T_total_per_worker: T_capital_per_worker + T_AI_per_worker + T_robot_per_worker,
+        phi: phi_est,
+        Rp_labor: phi_est * Rp,
+        Rp_capital: (1.0 - phi_est) * Rp
     };
 
     if (trustActive) {
         result.Y_final = Y_final;
         result.PY = PY;
+    }
+
+    // Per-year K_eff debug logging
+    if (params._debug_keff && useKeffNest) {
+        console.log('[K_eff yr=' + year + '] phi=' + phi_est.toFixed(4) +
+            ' Rp_L=' + (phi_est * Rp / 1e6).toFixed(2) + 'M Rp_K=' + ((1 - phi_est) * Rp / 1e6).toFixed(2) + 'M' +
+            ' | wp=' + final.wp.toFixed(2) + ' qr=' + final.qr.toFixed(2) +
+            ' | r=' + r.toFixed(6) + ' K_Y=' + (capAlloc.K_Y / 1e12).toFixed(4) + 'T' +
+            ' K_eff=' + (final.K_eff / 1e12).toFixed(4) + 'T');
     }
 
     return result;

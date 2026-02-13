@@ -1,0 +1,11 @@
+metric,value,units,year,confidence_level,source
+global_weighted_avg_generation_LCOE_all_sources,0.05657,$/kWh,2024,Medium,"Derived: renewable LCOE (IRENA) + implied least-cost fossil LCOE (IRENA) weighted by global fossil generation share (Ember)"
+global_weighted_avg_retail_electricity_price_end_use,0.16600,$/kWh,2025,Low,"GlobalPetrolPrices world average electricity price (Q4 2025); simple avg of residential (0.170) and business (0.162)"
+cost_per_watt_year_continuous_power_delivery,495.55,$/W-year,2024,Low,"Derived: ($/W-year) = LCOE × 8,760 (per user definition) using global_weighted_avg_generation_LCOE_all_sources"
+world_total_primary_energy_consumption_continuous_power,20.05,TW,2024,Medium,"Estimated: 2023 total 620 EJ (Energy Institute Statistical Review summary coverage) × 1.02 (Energy Institute: +2% in 2024), converted via 1 TW = 31.536 EJ/year"
+global_total_land_rents,6.341e12,USD/year,2024,Low,"Calibration: 5.7% of world GDP (World Bank via TradingEconomics) for model baseline; chosen to match 5–6% rule-of-thumb cross-check"
+world_total_urban_built_up_land_area,1.290e8,ha,2018,Medium,"Global impervious/built-up surface area estimate (Sun et al., 2022): 1.29 million km² in 2018 → 129 million ha"
+implied_avg_urban_land_rent_per_hectare,44693.19,USD/ha-year,2024,Low,"Derived: (global_total_land_rents − (avg_ag_rent_per_ha × ag_land_area)) / urban_built_up_area"
+world_total_agricultural_land_area,4.800e9,ha,2023,High,"FAO land statistics highlights: world total agricultural land ≈ 4,800 million ha (2023)"
+average_agricultural_land_rent_per_hectare,120.00,USD/ha-year,2024,Low,"Calibration anchor: Eurostat EU average rent (2024) and downscaled to global average incl. pasture; used for model baseline"
+blended_avg_land_rent_per_hectare_used_land,1286.55,USD/ha-year,2024,Low,"Derived: global_total_land_rents / (urban_built_up_area + agricultural_land_area)"

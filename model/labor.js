@@ -40,18 +40,22 @@ function computeLFP(wbar, wbar0, ubi_per_person, params) {
     return p_base * dampener;
 }
 
-// Compute UBI per person from equilibrium result
+// Compute UBI per person from equilibrium result (region-aware)
 function computeUBIPerPerson(year, eqResult, params, workingAgePop) {
     var d_ubi_start = params.dist_ubi_start_year || 9999;
     if (year < d_ubi_start) return 0;
     var d_tau_k = params.dist_tau_k || 0;
     var d_tau_AI = params.dist_tau_AI || 0;
     var d_tau_R = params.dist_tau_R || 0;
-    var d_ubi_share_us = params.dist_ubi_share_us || 0;
+    var isUS = typeof isUSMode === 'function' && isUSMode();
+    var isChina = typeof isChinaMode === 'function' && isChinaMode();
+    var ubi_share = isUS ? (params.dist_ubi_share_us || 0) :
+                    isChina ? (params.dist_ubi_share_china || 0) :
+                    (params.dist_ubi_share_world || 0);
     var T_total = d_tau_k * eqResult.r * eqResult.K_Y +
                   d_tau_AI * eqResult.qc * eqResult.AI_cog +
                   d_tau_R * eqResult.qr * eqResult.R_phys;
-    return T_total * d_ubi_share_us / Math.max(workingAgePop, 1);
+    return T_total * ubi_share / Math.max(workingAgePop, 1);
 }
 
 // Solve for predicted output WITH endogenous labor supply
@@ -94,9 +98,14 @@ function solveYearWithPredictedOutputAndEndogenousLabor(row, params, A, B, worki
         var result2 = solveMuOneYear(rowWithYL2, params, trustParams);
         var K_Y = result2.K_Y;
         var L_eff = result2.L_eff;
+        // Use φ from solver result: Rp_capital = (1-φ) × Rp
+        var phi = result2.phi || 1.0;
+        var Rp = row.R_phys || 0;
+        var Rp_capital = (1.0 - phi) * Rp;
+        var K_input = computeKeff(K_Y, Rp_capital, params);
         var trustParamsResolved2 = (trustParams && trustParams.active && result2.X_trust > 0)
             ? Object.assign({}, trustParams, { X_trust: result2.X_trust }) : trustParams;
-        var Y_pred = productionFunctionFull(A, K_Y, L_eff, params.alpha, params.sigma_K, params.K0_base, params.Leff0_base, trustParamsResolved2);
+        var Y_pred = productionFunctionFull(A, K_input, L_eff, params.alpha, params.sigma_K, params.K0_base, params.Leff0_base, trustParamsResolved2);
 
         var relError = Math.abs(Y_pred - Y) / Math.max(Y, TINY);
         if (relError < tol) {

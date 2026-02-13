@@ -1,0 +1,13 @@
+metric,value,units,year,confidence_level,source
+# ENERGY COSTS
+Global weighted-average LCOE (all sources),0.055,$/kWh,2024,Medium,"IRENA 2024 (renewables: wind $0.034, solar $0.043, hydro $0.057); IRENA/IEA (coal $0.073, gas $0.085). Mix-weighted estimate ~60% fossil, ~40% renewables."
+Global weighted-average retail electricity price,0.165,$/kWh,2025,High,"GlobalPetrolPrices Q4 2025: $0.170 residential, $0.162 business. Weighted average."
+Cost per watt of continuous power delivery,0.48,$/W-year,2024,Medium,"Derived: LCOE $0.055/kWh × 8,760 hours = $0.48/W-year"
+World total primary energy consumption,18.8,TW (continuous),2024,High,"Energy Institute Statistical Review 2024: 592 EJ/year = 18.8 TW continuous"
+# LAND RENTS
+Global total land rents,6.5,trillion USD/year,2024,Medium,"Estimated from global real estate values (Savills 2024): $287T residential + $58.5T commercial + $48T agricultural = ~$393T total real estate. Land ~35% of value ≈ $138T; at ~4.7% cap rate ≈ $6.5T. Cross-check: ~5.5% of $117T GWP."
+World total urban/built-up land area,85,million hectares,2024,Medium,"Nature Communications (Chen et al. 2020): ~0.6M km² (60M ha) in 2000, growing ~2.5%/yr. Estimated ~85M ha (850,000 km²) in 2024."
+Implied average urban land rent per hectare per year,58825,$/ha/year,2024,Low,"Derived: If urban land accounts for ~$5T of $6.5T total land rents (residential + commercial real estate dominant), then $5T / 85M ha ≈ $58,825/ha/year"
+World total agricultural land area,4781,million hectares,2022,High,"FAO FAOSTAT 2024: 4,781 million ha agricultural land (cropland 1,573M ha + permanent meadows/pastures 3,208M ha)"
+Average agricultural land rent per hectare per year,100,$/ha/year,2024,Medium,"US average cropland rent $160/acre ≈ $395/ha (USDA NASS 2024). Global average much lower due to developing world. Savills: $48T ag land value at ~3% yield ≈ $1.4T rent / 4.78B ha ≈ $100/ha."
+Blended average land rent per hectare per year (urban + agricultural),1340,$/ha/year,2024,Low,"Derived: Total rents $6.5T / total economically-used land (85M urban + 4,781M ag ≈ 4,866M ha) = $1,336/ha/year. Urban land vastly more valuable but tiny fraction of area."

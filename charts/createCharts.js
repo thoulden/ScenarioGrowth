@@ -8,7 +8,7 @@ function createCharts(results, useLand, showLaborChart, showConsumptionChart, gw
     // Destroy all existing chart instances
     [outputChart, gwpBreakdownChart, factorIncomeChart, wagesChart,
      muChart, laborChart, ellChart, laborProductivityChart, rentalCostChart,
-     capitalChart, interestChart, techChart,
+     capitalChart, interestChart, techChart, sectorPriceChart,
      landRentChart, landUseShareChart, consumerBudgetChart, landIncomeShareChart,
      wageIncomeChart, ubiTransferChart,
      incomeDistChart, incomeCompChart, netWorthChart, giniChart
@@ -65,7 +65,16 @@ function createCharts(results, useLand, showLaborChart, showConsumptionChart, gw
     // 12. Capital Efficiency
     techChart = createTechChart(results, years);
 
-    // 13. Land Rents
+    // 13. Two-Sector Decomposition (Goods vs Services)
+    var sectorPriceContainer = document.getElementById('sectorPriceContainer');
+    if (results[0].P_S != null) {
+        sectorPriceContainer.style.display = '';
+        sectorPriceChart = createSectorPriceChart(results, years);
+    } else {
+        sectorPriceContainer.style.display = 'none';
+    }
+
+    // 14. Land Rents
     var landRentContainer = document.getElementById('landRentContainer');
     if (useLand && results[0].rent_per_ha) {
         landRentContainer.style.display = '';
@@ -99,14 +108,8 @@ function createCharts(results, useLand, showLaborChart, showConsumptionChart, gw
         _cachedCBYears = null;
     }
 
-    // 16. Household Expenditure Split
-    var landIncomeShareContainer = document.getElementById('landIncomeShareContainer');
-    if (useLand && results[0].land_exp_share != null) {
-        landIncomeShareContainer.style.display = '';
-        landIncomeShareChart = createLandIncomeShareChart(results, years);
-    } else {
-        landIncomeShareContainer.style.display = 'none';
-    }
+    // Household Expenditure Split (Land / Services / Goods) — after sector prices
+    landIncomeShareChart = createLandIncomeShareChart(results, years);
 
     // 17-18. Wage Income & UBI Transfers
     var wageIncomeContainer = document.getElementById('wageIncomeChartContainer');

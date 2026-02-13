@@ -38,6 +38,8 @@
     <script src="charts/incomeDistChart.js"></script>
     <script src="charts/netWorthChart.js"></script>
     <script src="charts/giniChart.js"></script>
+    <script src="charts/sectorPriceChart.js"></script>
+    <script src="model/sectorPrices.js"></script>
     <script src="charts/createCharts.js"></script>
     <script src="charts/createDistributionCharts.js"></script>
     <style>
@@ -538,9 +540,9 @@
                     <div class="param-group">
                         <label for="alpha">&alpha; (capital share)</label>
                         <input type="number" id="alpha" value="0.36" step="0.01" min="0" max="1">
-                        <small>Capital's share in the CES production function</small>
+                        <small>Capital's share in the production function</small>
                     </div>
-                    <div class="param-group">
+                    <div class="param-group" id="sigma_K_container" style="display: none;">
                         <label for="sigma_K">&sigma;<sub>K</sub> (capital-labor)</label>
                         <input type="number" id="sigma_K" value="1.5" step="0.1" min="0.01" max="10">
                         <small>Elasticity of substitution between capital and labor composites</small>
@@ -669,7 +671,33 @@
                     <h3>(Implied) Capital Efficiency</h3>
                     <canvas id="techChart"></canvas>
                 </div>
-                <!-- 13. Land Rents (conditional) -->
+
+                <!-- ======== SCENARIO EXPLORATION DIVIDER ======== -->
+                <div style="grid-column: 1 / -1; text-align: center; padding: 24px 0 12px; margin: 12px 0;">
+                    <h2 style="font-family: 'Courier New', monospace; font-size: 16px; color: #666; margin: 0; letter-spacing: 2px; text-transform: uppercase;">Scenario Exploration</h2>
+                    <p style="font-size: 12px; color: #999; margin: 4px 0 0;">Derived outputs from optional model features</p>
+                    <hr style="border: none; border-top: 2px dashed #ccc; margin-top: 12px;">
+                </div>
+
+                <!-- Sector Price Decomposition (derived) -->
+                <div class="chart-container" id="sectorPriceContainer" style="display: none;">
+                    <div class="chart-toolbar">
+                        <button class="chart-download-btn" title="Download PNG" data-chart="sectorPriceChart">&#x2B07;</button>
+                    </div>
+                    <h3>Goods vs Services Price Decomposition</h3>
+                    <canvas id="sectorPriceChart"></canvas>
+                </div>
+
+                <!-- Household Expenditure Split (Land / Services / Goods) -->
+                <div class="chart-container" id="landIncomeShareContainer">
+                    <div class="chart-toolbar">
+                        <button class="chart-download-btn" title="Download PNG" data-chart="landIncomeShareChart">&#x2B07;</button>
+                    </div>
+                    <h3>Household Expenditure Split</h3>
+                    <canvas id="landIncomeShareChart"></canvas>
+                </div>
+
+                <!-- 14. Land Rents (conditional) -->
                 <div class="chart-container" id="landRentContainer" style="display: none;">
                     <div class="chart-toolbar">
                         <button class="chart-download-btn" title="Download PNG" data-chart="landRentChart">&#x2B07;</button>
@@ -716,14 +744,7 @@
                     </details>
                     <canvas id="consumerBudgetChart"></canvas>
                 </div>
-                <!-- 16. Household Expenditure Split (conditional) -->
-                <div class="chart-container" id="landIncomeShareContainer" style="display: none;">
-                    <div class="chart-toolbar">
-                        <button class="chart-download-btn" title="Download PNG" data-chart="landIncomeShareChart">&#x2B07;</button>
-                    </div>
-                    <h3>Household Expenditure Split</h3>
-                    <canvas id="landIncomeShareChart"></canvas>
-                </div>
+                <!-- 16. (moved to position 2) -->
                 <!-- 17. Wage Income (conditional) -->
                 <div class="chart-container" id="wageIncomeChartContainer" style="display: none;">
                     <div class="chart-toolbar">
@@ -794,6 +815,9 @@
                     <label><input type="checkbox" id="useTaxation" checked> Taxation</label>
                     <label><input type="checkbox" id="usePredictedOutput" checked> Predict Output</label>
                     <label><input type="checkbox" id="useIncomeDistribution" checked> Income Distribution</label>
+                    <label><input type="checkbox" id="enable_K_eff_nest" checked> K<sub>eff</sub> Nesting</label>
+                    <label><input type="checkbox" id="useOldProdFunc"> Old Prod Func</label>
+                    <label><input type="checkbox" id="useOldLabor"> Old Labor</label>
                 </div>
             </details>
 
@@ -940,6 +964,11 @@
                         <input type="number" id="trust_C_2040" value="2" step="0.1" min="0.1">
                         <small>Efficiency per worker by 2040</small>
                     </div>
+                    <div class="param-group">
+                        <label for="eps_trust">&epsilon;_trust (Supply Elasticity)</label>
+                        <input type="number" id="eps_trust" value="0.2" step="0.05" min="0" max="2">
+                        <small>0=fixed supply, 0.2=inelastic (occupational licensing), &gt;1=responsive</small>
+                    </div>
                 </div>
             </details>
 
@@ -978,6 +1007,87 @@
                         <small>Capital-to-output ratio: K&#x2080; = (K/Y) &times; Y&#x2080;</small>
                     </div>
                 </div>
+            </details>
+
+            <details id="keff_nest_params">
+                <summary>K<sub>eff</sub> Nesting Parameters</summary>
+                <div class="params-grid" style="margin-top: 8px;">
+                    <div class="param-group">
+                        <label for="nu_K">&nu;<sub>K</sub> (capital weight)</label>
+                        <input type="number" id="nu_K" value="0.95" step="0.01" min="0.01" max="0.99">
+                        <small>Share of traditional capital in K<sub>eff</sub></small>
+                    </div>
+                    <div class="param-group">
+                        <label for="sigma_Keff">&sigma;<sub>Keff</sub> (K-Robot elasticity)</label>
+                        <input type="number" id="sigma_Keff" value="2.0" step="0.1" min="0.1" max="10">
+                        <small>Substitution between capital and robots</small>
+                    </div>
+                </div>
+                <small style="display: block; margin-top: 6px; color: #888;">K<sub>eff</sub> = CES(K, R<sub>p</sub>, &nu;<sub>K</sub>, &sigma;<sub>Keff</sub>)</small>
+            </details>
+
+            <details>
+                <summary>Labor Supply</summary>
+                <div class="params-grid" style="margin-top: 8px;">
+                    <div class="param-group">
+                        <label for="lfp_target">LFP target</label>
+                        <input type="number" id="lfp_target" value="0.62" step="0.01" min="0.01" max="0.99">
+                        <small>Base-year labor force participation rate</small>
+                    </div>
+                    <div class="param-group" id="frisch_container">
+                        <label for="frisch_elasticity">Frisch elasticity (&eta;)</label>
+                        <input type="number" id="frisch_elasticity" value="0.17" step="0.01" min="0.01" max="2.0">
+                        <small>Wage elasticity of LFP at baseline (typical 0.1&ndash;0.5)</small>
+                    </div>
+                    <div class="param-group" id="logistic_s_container" style="display: none;">
+                        <label for="logistic_s">Logistic s</label>
+                        <input type="number" id="logistic_s" value="0.7" step="0.1" min="0.1">
+                        <small>Participation drop steepness</small>
+                    </div>
+                    <div class="param-group">
+                        <label for="k_ubi">UBI dampener (k)</label>
+                        <input type="number" id="k_ubi" value="1.13" step="0.01" min="0">
+                        <small>LFP &times; exp(-k &middot; UBI/wage)</small>
+                    </div>
+                    <div class="param-group">
+                        <label for="labor_damp">Labor damping</label>
+                        <input type="number" id="labor_damp" value="0.5" step="0.05" min="0.05" max="1.0">
+                        <small>Blend factor for convergence</small>
+                    </div>
+                </div>
+            </details>
+
+            <!-- ======== SCENARIO EXPLORATION SIDEBAR DIVIDER ======== -->
+            <div style="text-align: center; padding: 8px 0; margin: 8px 0;">
+                <hr style="border: none; border-top: 2px dashed #ccc;">
+                <span style="font-size: 11px; color: #999; letter-spacing: 1px; text-transform: uppercase;">Scenario Exploration</span>
+            </div>
+
+            <details>
+                <summary>Two-Sector Decomposition (Goods vs Services)</summary>
+                <div class="params-grid" style="margin-top: 8px;">
+                    <div class="param-group">
+                        <label for="theta_S">&theta;<sub>S</sub> (services cognitive weight)</label>
+                        <input type="number" id="theta_S" value="0.80" step="0.01" min="0.01" max="0.99">
+                        <small>Cognitive task share for services (&gt; &theta;)</small>
+                    </div>
+                    <div class="param-group">
+                        <label for="theta_G">&theta;<sub>G</sub> (goods cognitive weight)</label>
+                        <input type="number" id="theta_G" value="0.40" step="0.01" min="0.01" max="0.99">
+                        <small>Cognitive task share for goods (&lt; &theta;)</small>
+                    </div>
+                    <div class="param-group">
+                        <label for="eta_sector">&eta; (goods-services elasticity)</label>
+                        <input type="number" id="eta_sector" value="0.5" step="0.1" min="0.01" max="5">
+                        <small>CES elasticity between goods and services</small>
+                    </div>
+                    <div class="param-group">
+                        <label for="a_services">Service share (base year)</label>
+                        <input type="number" id="a_services" value="0.77" step="0.01" min="0.01" max="0.99">
+                        <small>Nominal share of GDP spent on services</small>
+                    </div>
+                </div>
+                <small style="display: block; margin-top: 6px; color: #888;">Y = CES(S, G, &nu;, &eta;) &mdash; &nu; calibrated from service share</small>
             </details>
 
             <div id="landParams">
@@ -1215,28 +1325,6 @@
                                 </table>
                             </div>
                         </details>
-                        <div class="params-grid" style="margin-top: 8px;">
-                            <div class="param-group">
-                                <label for="lfp_target">LFP target</label>
-                                <input type="number" id="lfp_target" value="0.62" step="0.01" min="0.01" max="0.99">
-                                <small>Base-year labor force participation rate</small>
-                            </div>
-                            <div class="param-group">
-                                <label for="logistic_s">Logistic s</label>
-                                <input type="number" id="logistic_s" value="0.7" step="0.1" min="0.1">
-                                <small>Participation drop steepness</small>
-                            </div>
-                            <div class="param-group">
-                                <label for="k_ubi">UBI dampener (k)</label>
-                                <input type="number" id="k_ubi" value="1.13" step="0.01" min="0">
-                                <small>LFP &times; exp(-k &middot; UBI/wage)</small>
-                            </div>
-                            <div class="param-group">
-                                <label for="labor_damp">Labor damping</label>
-                                <input type="number" id="labor_damp" value="0.5" step="0.05" min="0.05" max="1.0">
-                                <small>Blend factor for convergence</small>
-                            </div>
-                        </div>
                         <div id="lfpParams"></div>
                     </div>
                 </details>
@@ -1267,14 +1355,19 @@
                             <small>Tax on robot service revenue</small>
                         </div>
                         <div class="param-group">
-                            <label for="ubi_share_us">UBI Share (US)</label>
+                            <label for="ubi_share_us">Domestic UBI (US)</label>
                             <input type="number" id="ubi_share_us" value="0.50" step="0.01" min="0" max="1">
-                            <small>Fraction of tax revenue to US UBI</small>
+                            <small>Share of US tax rev &rarr; US citizens</small>
                         </div>
                         <div class="param-group">
-                            <label for="ubi_share_world">UBI Share (World)</label>
+                            <label for="ubi_share_china">Domestic UBI (China)</label>
+                            <input type="number" id="ubi_share_china" value="0.50" step="0.01" min="0" max="1">
+                            <small>Share of China tax rev &rarr; China citizens</small>
+                        </div>
+                        <div class="param-group">
+                            <label for="ubi_share_world">Foreign Aid UBI</label>
                             <input type="number" id="ubi_share_world" value="0.30" step="0.01" min="0" max="1">
-                            <small>Fraction of tax revenue to world ex-China UBI</small>
+                            <small>Share of tax rev &rarr; RoW (excl. other power)</small>
                         </div>
                     </div>
                 </details>
@@ -1480,7 +1573,16 @@
             delta_K: parseFloat(document.getElementById('delta_K').value),
             delta_C: parseFloat(document.getElementById('delta_C').value),
             delta_R: parseFloat(document.getElementById('delta_R').value),
-            sigma_K: parseFloat(document.getElementById('sigma_K').value)
+            sigma_K: document.getElementById('useOldProdFunc').checked ? parseFloat(document.getElementById('sigma_K').value) : 1.0,
+            enable_K_eff_nest: document.getElementById('enable_K_eff_nest').checked,
+            _debug_keff: document.getElementById('enable_K_eff_nest').checked,
+            nu_K: parseFloat(document.getElementById('nu_K').value),
+            sigma_Keff: parseFloat(document.getElementById('sigma_Keff').value),
+            // Two-sector decomposition (goods vs services)
+            theta_S: parseFloat(document.getElementById('theta_S').value) || 0.80,
+            theta_G: parseFloat(document.getElementById('theta_G').value) || 0.40,
+            eta_sector: parseFloat(document.getElementById('eta_sector').value) || 0.5,
+            a_services: parseFloat(document.getElementById('a_services').value) || 0.77
         };
 
         // Trusted labor params (always on)
@@ -1490,6 +1592,7 @@
         params.trust_initial_value = params.trust_num_workers * params.trust_avg_wage;
         params.trust_sigma = parseFloat(document.getElementById('trust_sigma').value);
         params.trust_C_2040 = parseFloat(document.getElementById('trust_C_2040').value);
+        params.eps_trust = parseFloat(document.getElementById('eps_trust').value);
 
         if (isLandMode()) {
             params.land_exp_share = parseFloat(document.getElementById('land_exp_share').value);
@@ -1515,6 +1618,7 @@
             params.tau_R = parseFloat(document.getElementById('tau_R').value);
             params.ubi_start_year = parseInt(document.getElementById('ubi_start_year').value);
             params.ubi_share_us = parseFloat(document.getElementById('ubi_share_us').value);
+            params.ubi_share_china = parseFloat(document.getElementById('ubi_share_china').value);
             params.ubi_share_world = parseFloat(document.getElementById('ubi_share_world').value);
         } else {
             // Default to zero taxes
@@ -1523,6 +1627,7 @@
             params.tau_R = 0;
             params.ubi_start_year = 9999;
             params.ubi_share_us = 0;
+            params.ubi_share_china = 0;
             params.ubi_share_world = 0;
         }
 
@@ -1597,11 +1702,19 @@
             params.dist_tau_R = parseFloat(document.getElementById('tau_R').value);
             params.dist_ubi_start_year = parseInt(document.getElementById('ubi_start_year').value);
             params.dist_ubi_share_us = parseFloat(document.getElementById('ubi_share_us').value);
+            params.dist_ubi_share_china = parseFloat(document.getElementById('ubi_share_china').value);
             params.dist_ubi_share_world = parseFloat(document.getElementById('ubi_share_world').value);
 
             // LFP model parameters
             params.lfp_target = parseFloat(document.getElementById('lfp_target').value);
-            params.logistic_s = parseFloat(document.getElementById('logistic_s').value);
+            if (document.getElementById('useOldLabor').checked) {
+                // Old labor: use logistic_s directly
+                params.logistic_s = parseFloat(document.getElementById('logistic_s').value);
+            } else {
+                // New labor: convert Frisch elasticity to logistic steepness
+                params.frisch_elasticity = parseFloat(document.getElementById('frisch_elasticity').value);
+                params.logistic_s = params.frisch_elasticity / (params.lfp_target * (1.0 - params.lfp_target));
+            }
             params.k_ubi = parseFloat(document.getElementById('k_ubi').value);
             params.labor_damp = parseFloat(document.getElementById('labor_damp').value);
         }
@@ -2188,6 +2301,7 @@
     var incomeCompChart = null;
     var netWorthChart = null;
     var giniChart = null;
+    var sectorPriceChart = null;
 
     // Chart functions loaded from charts/*.js
     // Distribution cache variables (used by external chart modules)
@@ -2324,16 +2438,41 @@
             var K_0 = p.initial_KY_ratio * data[0].Y;
             var baseRowWithK = Object.assign({}, data[0], { K: K_0 });
 
+            // Calibration: handle CES normalization (σ_K≠1) and/or K_eff nesting
+            var sigma_K_calib = p.sigma_K || 1.0;
+            var useCES = Math.abs(sigma_K_calib - 1.0) >= 1e-10;
+            var useKeffNest = p.enable_K_eff_nest;
+
+            // Pass 1: solve without K_eff nesting to get clean base values
+            var keff_was_on = p.enable_K_eff_nest;
+            if (useKeffNest) p.enable_K_eff_nest = false;
             var baseResult = solveMuOneYear(baseRowWithK, p);
-            var sigma_K = p.sigma_K || 1.0;
-            if (Math.abs(sigma_K - 1.0) >= 1e-10) {
+
+            // CES normalization bases (needed when σ_K ≠ 1)
+            if (useCES) {
                 p.K0_base = K_0;
                 p.Leff0_base = baseResult.L_eff;
+                // Re-solve with CES normalization active
                 baseResult = solveMuOneYear(baseRowWithK, p);
                 p.Leff0_base = baseResult.L_eff;
             }
 
-            var A = calibrateTFP(data[0].Y, baseResult.K_Y, baseResult.L_eff, p.alpha, p.sigma_K, p.K0_base, p.Leff0_base);
+            // K_eff nesting bases
+            if (useKeffNest) {
+                p.K_Y_base = baseResult.K_Y;
+                p.Rp_base = baseResult.Hp;
+                p.enable_K_eff_nest = keff_was_on;
+                // Re-solve with nesting active
+                baseResult = solveMuOneYear(baseRowWithK, p);
+            } else {
+                p.enable_K_eff_nest = keff_was_on;
+            }
+
+            // Use φ from solver result: Rp_capital = (1-φ) × Rp for K_eff calibration
+            var phi_base = baseResult.phi || 1.0;
+            var Rp_base_capital = (1.0 - phi_base) * (data[0].R_phys || 0);
+            var K_eff_base = computeKeff(baseResult.K_Y, Rp_base_capital, p);
+            var A = calibrateTFP(data[0].Y, K_eff_base, baseResult.L_eff, p.alpha, p.sigma_K, p.K0_base, p.Leff0_base);
 
             var trust_H = p.trust_num_workers;
             var trust_s = null;
@@ -2351,7 +2490,7 @@
                         trust_s = calibrateTrustShare(prev_Y, 1.0 * trust_H, p.trust_initial_value, p.trust_sigma);
                     }
                     var C_trust = computeTrustEfficiency(row.year, p.trust_start_year, p.trust_C_2040);
-                    trustParams = { s_trust: trust_s, sigma_trust: p.trust_sigma, C_trust: C_trust, H_trust_seed: trust_H, prev_H_trust: prev_H_trust, anchor_H_trust: (row.year === p.trust_start_year), active: true };
+                    trustParams = { s_trust: trust_s, sigma_trust: p.trust_sigma, C_trust: C_trust, eps_trust: p.eps_trust, H_trust_seed: trust_H, prev_H_trust: prev_H_trust, active: true };
                 }
 
                 if (i === 0) {
@@ -2459,30 +2598,39 @@
                 const K_0 = params.initial_KY_ratio * baseRow.Y;
                 const baseRowWithK = { ...baseRow, K: K_0 };
 
-                // Solve base year to calibrate TFP (A)
-                // Two-pass approach for CES normalization:
-                // Pass 1: solve to get L_eff₀ (for CES normalization constants)
-                // Pass 2: re-solve with normalization active so shares = α at base year
-                let baseResult;
+                // Multi-pass calibration: handle CES normalization (σ_K≠1) and/or K_eff nesting
+                var sigma_K_calib = params.sigma_K || 1.0;
+                var useCES = Math.abs(sigma_K_calib - 1.0) >= 1e-10;
+                var useKeffNest = params.enable_K_eff_nest;
 
-                // Pass 1: initial solve to determine base-year K_Y and L_eff
-                baseResult = solveMuOneYear(baseRowWithK, params);
+                // Pass 1: solve without K_eff nesting to get clean base values
+                var keff_was_on2 = params.enable_K_eff_nest;
+                if (useKeffNest) params.enable_K_eff_nest = false;
+                var baseResult0 = solveMuOneYear(baseRowWithK, params);
 
-                // Store CES normalization constants: K₀_total and L_eff₀
-                // pricesGivenMuAndZ uses total K in the CES nest, so normalize by K₀_total
-                // At base year: cesTaskAgg(K₀/K₀, L_eff₀/L_eff₀) = cesTaskAgg(1, 1) = 1
-                // So r = α × Y / K₀ and total capital share = α
-                const sigma_K = params.sigma_K || 1.0;
-                if (Math.abs(sigma_K - 1.0) >= 1e-10) {
-                    params.K0_base = K_0;  // Total base-year capital (matches pricesGivenMuAndZ's K input)
-                    params.Leff0_base = baseResult.L_eff;
-                    // Pass 2: re-solve with normalization active
-                    baseResult = solveMuOneYear(baseRowWithK, params);
-                    // Update Leff0_base to match pass 2's L_eff for exact normalization
-                    params.Leff0_base = baseResult.L_eff;
+                // CES normalization bases (needed when σ_K ≠ 1)
+                if (useCES) {
+                    params.K0_base = K_0;
+                    params.Leff0_base = baseResult0.L_eff;
+                    // Re-solve with CES normalization active
+                    baseResult0 = solveMuOneYear(baseRowWithK, params);
+                    params.Leff0_base = baseResult0.L_eff;
                 }
 
-                // Endogenous labor: calibrate from base year
+                // K_eff nesting bases
+                if (useKeffNest) {
+                    params.K_Y_base = baseResult0.K_Y;
+                    params.Rp_base = baseResult0.Hp;
+                    params.enable_K_eff_nest = keff_was_on2;
+                    // Re-solve with nesting active
+                    baseResult0 = solveMuOneYear(baseRowWithK, params);
+                } else {
+                    params.enable_K_eff_nest = keff_was_on2;
+                }
+
+                let baseResult = baseResult0;
+
+                // Endogenous labor: calibrate from base year (using nesting-consistent wages)
                 var B_po = null;
                 if (doEndogenousLabor) {
                     var wbar_0_po = computeAverageWage(baseResult.wc, baseResult.wp, baseResult.ell_c);
@@ -2493,9 +2641,12 @@
                     B_po = calibrateLaborSupplyB(L_0_po, wbar_0_po, params.psi);
                 }
 
-                // Calibrate TFP: CES or Cobb-Douglas
-                // With CES normalization: A = Y / cesTaskAgg(K_Y/K₀, 1) where K₀ = total capital
-                const A = calibrateTFP(baseRow.Y, baseResult.K_Y, baseResult.L_eff, params.alpha, params.sigma_K, params.K0_base, params.Leff0_base);
+                // Calibrate TFP (Cobb-Douglas or CES depending on σ_K, with optional K_eff nesting)
+                // Use φ from solver result: Rp_capital = (1-φ) × Rp for K_eff calibration
+                var phi_base_po = baseResult.phi || 1.0;
+                var Rp_base_capital_po = (1.0 - phi_base_po) * (baseRow.R_phys || 0);
+                var K_eff_base = computeKeff(baseResult.K_Y, Rp_base_capital_po, params);
+                const A = calibrateTFP(baseRow.Y, K_eff_base, baseResult.L_eff, params.alpha, params.sigma_K, params.K0_base, params.Leff0_base);
 
                 // Trust share calibrated on first year of activation (needs actual Y at that point)
                 const trust_H = params.trust_num_workers;
@@ -2537,9 +2688,9 @@
                             s_trust: trust_s,
                             sigma_trust: params.trust_sigma,
                             C_trust: C_trust,
+                            eps_trust: params.eps_trust,
                             H_trust_seed: trust_H,
                             prev_H_trust: prev_H_trust_val,
-                            anchor_H_trust: (row.year === params.trust_start_year),
                             active: true
                         };
                     }
@@ -2611,19 +2762,6 @@
                 // SPREADSHEET MODE (original behavior)
                 // ========================================
 
-                // CES normalization: two-pass on base year to get K₀ and L_eff₀
-                const sigma_K_sp = params.sigma_K || 1.0;
-                if (Math.abs(sigma_K_sp - 1.0) >= 1e-10) {
-                    const baseRow_sp = loadedData[0];
-                    // Pass 1: get base-year L_eff
-                    const baseResult_sp1 = solveMuOneYear(baseRow_sp, params);
-                    params.K0_base = baseRow_sp.K;  // Total base-year capital from spreadsheet
-                    params.Leff0_base = baseResult_sp1.L_eff;
-                    // Pass 2: re-solve with normalization and update L_eff
-                    const baseResult_sp2 = solveMuOneYear(baseRow_sp, params);
-                    params.Leff0_base = baseResult_sp2.L_eff;
-                }
-
                 // Calibrate land base year (spreadsheet mode)
                 if (landParams) {
                     var s_rate_sp = params.savings_rate || 0.2;
@@ -2649,7 +2787,7 @@
                     params.trust_sigma
                 );
 
-                // Helper to build per-year trustParams (H_trust solved endogenously)
+                // Helper to build per-year trustParams (H_trust from inelastic supply curve)
                 var prev_H_trust_sp = null;
                 function buildTrustParams_sp(year) {
                     if (year < params.trust_start_year) return null;
@@ -2658,11 +2796,40 @@
                         s_trust: trust_s_sp,
                         sigma_trust: params.trust_sigma,
                         C_trust: C_trust,
+                        eps_trust: params.eps_trust,
                         H_trust_seed: trust_H_sp,
                         prev_H_trust: prev_H_trust_sp,
-                        anchor_H_trust: (year === params.trust_start_year),
                         active: true
                     };
+                }
+
+                // Set normalization bases for spreadsheet mode
+                // Handle CES normalization (σ_K≠1) and/or K_eff nesting
+                var sigma_K_sp = params.sigma_K || 1.0;
+                var useCES_sp = Math.abs(sigma_K_sp - 1.0) >= 1e-10;
+                var useKeffNest_sp = params.enable_K_eff_nest;
+                if (useCES_sp || useKeffNest_sp) {
+                    var baseRow_sp = loadedData[0];
+                    var keff_sp_was_on = params.enable_K_eff_nest;
+                    if (useKeffNest_sp) params.enable_K_eff_nest = false;
+                    var baseResult_sp0 = solveMuOneYear(baseRow_sp, params);
+
+                    // CES normalization bases
+                    if (useCES_sp) {
+                        params.K0_base = baseRow_sp.K;
+                        params.Leff0_base = baseResult_sp0.L_eff;
+                        baseResult_sp0 = solveMuOneYear(baseRow_sp, params);
+                        params.Leff0_base = baseResult_sp0.L_eff;
+                    }
+
+                    // K_eff nesting bases
+                    if (useKeffNest_sp) {
+                        params.K_Y_base = baseResult_sp0.K_Y;
+                        params.Rp_base = baseResult_sp0.Hp;
+                        params.enable_K_eff_nest = keff_sp_was_on;
+                    } else {
+                        params.enable_K_eff_nest = keff_sp_was_on;
+                    }
                 }
 
                 if (doEndogenousLabor) {
@@ -2757,6 +2924,52 @@
                 console.warn('GWP breakdown failed:', e.message);
             }
 
+            // Two-sector decomposition (goods vs services)
+            // Calibrate ν from base-year factor prices, then decompose each year
+            var sectorParams = null;
+            if (results.length > 0 && results[0].wc != null) {
+                var baseR = results[0];
+                // Compute base-year sector prices for ν calibration
+                var bp_cog_0 = cesDualPrice(baseR.wc, baseR.qc, baseR.mu_h_c, params.sig_c);
+                var bp_phys_0 = cesDualPrice(baseR.wp, baseR.qr, baseR.mu_h_p, params.sig_p);
+                var bp_eff_S_0 = cesDualPrice(bp_cog_0, bp_phys_0, params.theta_S, params.eps);
+                var bp_eff_G_0 = cesDualPrice(bp_cog_0, bp_phys_0, params.theta_G, params.eps);
+                var bp_eff_agg_0 = cesDualPrice(bp_cog_0, bp_phys_0, params.theta, params.eps);
+                var bP_S_0 = Math.pow(bp_eff_S_0 / Math.max(bp_eff_agg_0, TINY), 1.0 - params.alpha);
+                var bP_G_0 = Math.pow(bp_eff_G_0 / Math.max(bp_eff_agg_0, TINY), 1.0 - params.alpha);
+                var nu_cal = calibrateSectorNu(bP_S_0, bP_G_0, params.a_services, params.eta_sector);
+
+                // Theta consistency warning
+                var theta_check = params.a_services * params.theta_S + (1.0 - params.a_services) * params.theta_G;
+                if (Math.abs(params.theta - theta_check) > 0.05) {
+                    console.warn('[Sectors] Aggregate θ=' + params.theta.toFixed(3) + ' differs from spending-weighted avg=' + theta_check.toFixed(3) + '. Consider adjusting θ_S/θ_G.');
+                }
+
+                sectorParams = {
+                    theta_S: params.theta_S,
+                    theta_G: params.theta_G,
+                    theta_agg: params.theta,
+                    eta: params.eta_sector,
+                    nu: nu_cal,
+                    eps: params.eps,
+                    sig_c: params.sig_c,
+                    sig_p: params.sig_p,
+                    alpha: params.alpha
+                };
+
+                for (var sp_i = 0; sp_i < results.length; sp_i++) {
+                    var sd = computeSectorDecomposition(results[sp_i], sectorParams);
+                    results[sp_i].P_S = sd.P_S;
+                    results[sp_i].P_G = sd.P_G;
+                    results[sp_i].S_output = sd.S;
+                    results[sp_i].G_output = sd.G;
+                    results[sp_i].service_share = sd.service_share;
+                    results[sp_i].price_ratio = sd.price_ratio;
+                    results[sp_i].nominal_S = sd.nominal_S;
+                    results[sp_i].nominal_G = sd.nominal_G;
+                }
+            }
+
             // Income distribution post-processing (charts only — labor already integrated)
             if (useDistribution) {
                 var distribution = computeIncomeDistribution(results, distHouseholds, params);
@@ -2808,6 +3021,22 @@
         // Toggle labor supply parameter visibility: psi when dist off, LFP params when dist on
         document.getElementById('psiParams').classList.toggle('hidden', this.checked);
         document.getElementById('lfpParams').classList.toggle('hidden', !this.checked);
+    });
+
+    // K_eff nesting toggle
+    document.getElementById('enable_K_eff_nest').addEventListener('change', function() {
+        document.getElementById('keff_nest_params').style.display = this.checked ? '' : 'none';
+    });
+
+    // Old Prod Func toggle: show/hide σ_K input
+    document.getElementById('useOldProdFunc').addEventListener('change', function() {
+        document.getElementById('sigma_K_container').style.display = this.checked ? '' : 'none';
+    });
+
+    // Old Labor toggle: swap Frisch / logistic_s input visibility
+    document.getElementById('useOldLabor').addEventListener('change', function() {
+        document.getElementById('frisch_container').style.display = this.checked ? 'none' : '';
+        document.getElementById('logistic_s_container').style.display = this.checked ? '' : 'none';
     });
 
     // Income composition year toggle
@@ -2960,12 +3189,35 @@
             });
         });
 
+        // Swap income multiplier defaults
+        var mult;
+        if (mode === 'us') mult = MULT_DEFAULTS_US;
+        else if (mode === 'china') mult = MULT_DEFAULTS_CHINA;
+        else mult = MULT_DEFAULTS_WORLD;
+        var multKeys = ['wage', 'capital', 'ai', 'robot', 'land'];
+        var multPcts = ['5', '10', '25', '50', '75', '90', '95', '99', '999'];
+        multKeys.forEach(function(key) {
+            multPcts.forEach(function(pct, i) {
+                var el = document.getElementById('mult_' + key + '_' + pct);
+                if (el) el.value = mult[key].vals[i];
+            });
+        });
+
         // Swap LFP defaults
         var lfp;
         if (mode === 'us') lfp = LFP_DEFAULTS_US;
         else if (mode === 'china') lfp = LFP_DEFAULTS_CHINA;
         else lfp = LFP_DEFAULTS_WORLD;
         document.getElementById('lfp_target').value = lfp.lfp_target;
+        document.getElementById('frisch_elasticity').value = lfp.frisch_elasticity;
+        document.getElementById('logistic_s').value = lfp.logistic_s;
+
+        // Swap service share default by region
+        var aServ;
+        if (mode === 'us') aServ = 0.77;
+        else if (mode === 'china') aServ = 0.53;
+        else aServ = 0.65;
+        document.getElementById('a_services').value = aServ;
 
         // Swap land expenditure share default
         var landExp;
