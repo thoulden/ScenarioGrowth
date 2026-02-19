@@ -15,7 +15,7 @@ function createFactorIncomeChart(results, years, useLand) {
     }
     var ctx = document.getElementById('factorIncomeChart').getContext('2d');
     return new Chart(ctx, makeChartConfig(datasets, years,
-        { yStacked: true, yTitle: '% of ' + ((isUSMode() || (typeof isChinaMode === 'function' && isChinaMode())) ? 'GDP' : 'GWP'), yMin: 0, yMax: 100, yFormat: '%' },
+        { yStacked: true, yTitle: '% of Output', yMin: 0, yMax: 100, yFormat: '%' },
         { title: 'Factor income shares over time', legendPos: 'bottom' }
     ));
 }

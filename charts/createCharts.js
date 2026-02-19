@@ -28,9 +28,7 @@ function createCharts(results, useLand, showLaborChart, showConsumptionChart, gw
 
     // 3. Factor Income Shares
     factorIncomeChart = createFactorIncomeChart(results, years, useLand);
-    var regionMode = typeof getRegionMode === 'function' ? getRegionMode() : (isUSMode() ? 'us' : 'global');
-    var gdpLabel = (regionMode === 'us' || regionMode === 'china') ? 'GDP' : 'GWP';
-    document.getElementById('factorIncomeTitle').textContent = 'Factor Income Shares of ' + gdpLabel;
+    document.getElementById('factorIncomeTitle').textContent = 'Factor Income Shares of Output';
 
     // 4. Wages
     wagesChart = createWagesChart(results, years);

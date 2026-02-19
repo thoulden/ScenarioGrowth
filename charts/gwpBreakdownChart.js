@@ -1,4 +1,4 @@
-// Chart: GWP Breakdown by Region (stacked area, always sums to 100%)
+// Chart: Output Breakdown by Region (stacked area, always sums to 100%)
 function createGwpBreakdownChart(gwpBreakdown, years) {
     var T = CHART_THEME.colors;
 
@@ -22,7 +22,7 @@ function createGwpBreakdownChart(gwpBreakdown, years) {
 
     var ctx = document.getElementById('gwpBreakdownChart').getContext('2d');
     return new Chart(ctx, makeChartConfig(datasets, years,
-        { yStacked: true, yTitle: '% of GWP', yMin: 0, yMax: 100, yFormat: '%' },
-        { title: 'GWP Breakdown by Region', legendPos: 'bottom' }
+        { yStacked: true, yTitle: '% of Output', yMin: 0, yMax: 100, yFormat: '%' },
+        { title: 'Output Breakdown by Region', legendPos: 'bottom' }
     ));
 }
