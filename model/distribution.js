@@ -264,6 +264,7 @@ function computeSmoothDistribution(r, params) {
         var a_h = fa * mean_ai;
         var r_h = fr * mean_robot;
         var l_h = fl * mean_land;
+
         var tot = w_h + trust_h + k_h + a_h + r_h + l_h + ubi;
 
         income.push({ x: pct, y: tot });
@@ -283,7 +284,8 @@ function computeSmoothDistribution(r, params) {
     return {
         income: income, networth: networth,
         components: { wage: comp_wage, capital: comp_cap, ai: comp_ai,
-                      robot: comp_robot, land: comp_land, trust: comp_trust, ubi: comp_ubi }
+                      robot: comp_robot, land: comp_land, trust: comp_trust,
+                      ubi: comp_ubi }
     };
 }
 
@@ -421,6 +423,7 @@ function computeIncomeDistribution(results, households, params) {
             var trust_bucket = working[h] ? (hh.skill * pf / Math.max(total_working_skill_weight, TINY)) * total_trust_income : 0;
             var trust_h = trust_bucket / n_real;
             var ubi_h = ubi_per_person; // already per person
+
             var total_h = wage_h + cap_h + ai_h + robot_h + land_h + trust_h + ubi_h;
 
             var networth_h = (hh.own_K * K_total + hh.own_AI * K_AI_value +

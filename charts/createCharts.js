@@ -10,8 +10,8 @@ function createCharts(results, useLand, showLaborChart, showConsumptionChart, gw
      muChart, laborChart, ellChart, laborProductivityChart, rentalCostChart,
      capitalChart, interestChart, techChart, sectorPriceChart,
      landRentChart, landUseShareChart, consumerBudgetChart, landIncomeShareChart,
-     wageIncomeChart, ubiTransferChart,
-     incomeDistChart, incomeCompChart, netWorthChart, giniChart
+     realConsumptionChart, wageIncomeChart, ubiTransferChart,
+     incomeDistChart, incomeCompChart, netWorthChart, giniChart, povertyChart
     ].forEach(function(c) { if (c) c.destroy(); });
 
     // 1. Output
@@ -53,7 +53,7 @@ function createCharts(results, useLand, showLaborChart, showConsumptionChart, gw
     // 8. Labor Productivity
     laborProductivityChart = createLaborProductivityChart(results, years);
 
-    // 9. Rental Costs
+    // 9. Factor Marginal Products
     rentalCostChart = createRentalCostChart(results, years);
 
     // 10. Capital Allocation
@@ -110,6 +110,15 @@ function createCharts(results, useLand, showLaborChart, showConsumptionChart, gw
 
     // Household Expenditure Split (Land / Services / Goods) — after sector prices
     landIncomeShareChart = createLandIncomeShareChart(results, years);
+
+    // Real Consumption Growth per Working-Age Person
+    var realConsContainer = document.getElementById('realConsumptionContainer');
+    if (results[0].P_S != null && results[0].P_G != null) {
+        realConsContainer.style.display = '';
+        realConsumptionChart = createRealConsumptionChart(results, years);
+    } else {
+        realConsContainer.style.display = 'none';
+    }
 
     // 17-18. Wage Income & UBI Transfers
     var wageIncomeContainer = document.getElementById('wageIncomeChartContainer');

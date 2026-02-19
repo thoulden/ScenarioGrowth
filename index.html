@@ -6,6 +6,10 @@
     <title>Scenario Growth Model</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <!-- Region parameter files (loaded before model core) -->
+    <script src="params/params_us.js"></script>
+    <script src="params/params_china.js"></script>
+    <script src="params/params_world.js"></script>
     <!-- Model core (no DOM dependencies, loaded first) -->
     <script src="model/constants.js"></script>
     <script src="model/ces.js"></script>
@@ -33,11 +37,13 @@
     <script src="charts/landRentChart.js"></script>
     <script src="charts/landUseShareChart.js"></script>
     <script src="charts/landIncomeShareChart.js"></script>
+    <script src="charts/realConsumptionChart.js"></script>
     <script src="charts/consumerBudgetChart.js"></script>
     <script src="charts/incomeCompChart.js"></script>
     <script src="charts/incomeDistChart.js"></script>
     <script src="charts/netWorthChart.js"></script>
-    <script src="charts/giniChart.js"></script>
+    <script src="charts/giniChart.js"></script>3
+    <script src="charts/povertyChart.js"></script>
     <script src="charts/sectorPriceChart.js"></script>
     <script src="model/sectorPrices.js"></script>
     <script src="charts/createCharts.js"></script>
@@ -639,12 +645,12 @@
                     <h3>Labor Productivity</h3>
                     <canvas id="laborProductivityChart"></canvas>
                 </div>
-                <!-- 9. Rental Costs -->
+                <!-- 9. Factor Marginal Products -->
                 <div class="chart-container">
                     <div class="chart-toolbar">
                         <button class="chart-download-btn" title="Download PNG" data-chart="rentalCostChart">&#x2B07;</button>
                     </div>
-                    <h3>Rental Costs over Time</h3>
+                    <h3>Factor Marginal Products</h3>
                     <canvas id="rentalCostChart"></canvas>
                 </div>
                 <!-- 10. Capital Allocation -->
@@ -688,13 +694,22 @@
                     <canvas id="sectorPriceChart"></canvas>
                 </div>
 
-                <!-- Household Expenditure Split (Land / Services / Goods) -->
+                <!-- Household Expenditure Growth (Land / Services / Goods) -->
                 <div class="chart-container" id="landIncomeShareContainer">
                     <div class="chart-toolbar">
                         <button class="chart-download-btn" title="Download PNG" data-chart="landIncomeShareChart">&#x2B07;</button>
                     </div>
-                    <h3>Household Expenditure Split</h3>
+                    <h3>Household Expenditure Growth</h3>
                     <canvas id="landIncomeShareChart"></canvas>
+                </div>
+
+                <!-- Real Consumption Growth per Working-Age Person -->
+                <div class="chart-container" id="realConsumptionContainer">
+                    <div class="chart-toolbar">
+                        <button class="chart-download-btn" title="Download PNG" data-chart="realConsumptionChart">&#x2B07;</button>
+                    </div>
+                    <h3>Real Consumption Growth per Working-Age Person</h3>
+                    <canvas id="realConsumptionChart"></canvas>
                 </div>
 
                 <!-- 14. Land Rents (conditional) -->
@@ -795,6 +810,14 @@
                     </div>
                     <h3>Gini Coefficients Over Time</h3>
                     <canvas id="giniChart"></canvas>
+                </div>
+                <!-- Poverty Headcount Rates (conditional on distribution) -->
+                <div class="chart-container" id="povertyContainer" style="display: none;">
+                    <div class="chart-toolbar">
+                        <button class="chart-download-btn" title="Download PNG" data-chart="povertyChart">&#x2B07;</button>
+                    </div>
+                    <h3>Poverty Headcount Rates</h3>
+                    <canvas id="povertyChart"></canvas>
                 </div>
             </div>
 
@@ -1477,29 +1500,10 @@
     // All share rows combined (always in table; visibility toggled by mode)
     const ALL_SHARE_ROWS = US_SHARE_ROWS.concat(CHINA_SHARE_ROWS);
 
-    // Background defaults for US economy (fallback if CSV not loaded)
-    var BACKGROUND_DEFAULTS_US = {
-        "Human Working Age Population": ["270.7M","273.4M","276.1M","278.9M","281.7M","284.5M","287.3M","290.2M","293.1M","296.0M","299.0M","302.0M","305.0M","308.1M","311.1M","314.3M"],
-        "Human Labor Force": ["168.6M","168.4M","168.0M","167.4M","166.5M","164.0M","159.0M","151.0M","140.0M","126.0M","108.0M","88.0M","66.0M","47.0M","37.0M","33.3M"],
-        "Output": ["30.6T","31.2T","32T","33T","33.5T","34.5T","36.5T","39.5T","45.5T","63T","120T","205T","373T","710T","1375T","2710T"],
-        "Capital": ["91.8T","93T","94T","95T","96T","97T","98T","99T","101T","104T","110T","125T","154T","210T","320T","538T"]
-    };
-
-    // Background defaults for Global economy (fallback if CSV not loaded)
-    var BACKGROUND_DEFAULTS_GLOBAL = {
-        "Human Working Age Population": ["5.10B","5.12B","5.15B","5.18B","5.21B","5.24B","5.28B","5.32B","5.36B","5.40B","5.44B","5.49B","5.53B","5.58B","5.63B","5.68B"],
-        "Human Labor Force": ["3.50B","3.50B","3.49B","3.47B","3.44B","3.38B","3.30B","3.18B","3.02B","2.80B","2.50B","2.15B","1.75B","1.30B","0.95B","0.70B"],
-        "Output": ["117T","120T","124T","128T","132T","137T","144T","155T","179T","249T","475T","811T","1477T","2804T","5438T","10715T"],
-        "Capital": ["410T","414T","418T","422T","427T","432T","438T","444T","452T","465T","490T","556T","685T","932T","1420T","2384T"]
-    };
-
-    // Background defaults for China economy (IMF, UN WPP, PWT sources)
-    var BACKGROUND_DEFAULTS_CHINA = {
-        "Human Working Age Population": ["983M","977M","972M","966M","961M","955M","948M","941M","934M","927M","920M","913M","906M","899M","892M","885M"],
-        "Human Labor Force": ["637M","635M","633M","631M","629M","620M","600M","570M","525M","470M","400M","320M","235M","165M","133M","123M"],
-        "Output": ["20.7T","21.3T","22T","22.8T","23.5T","24.5T","26T","28T","32T","44T","84T","144T","262T","497T","963T","1897T"],
-        "Capital": ["70T","71T","72T","73T","74T","75T","76T","77T","78.5T","81T","85T","97T","119T","163T","248T","417T"]
-    };
+    // Background defaults — drawn from region param files (mutable for CSV overlay)
+    var BACKGROUND_DEFAULTS_US = JSON.parse(JSON.stringify(PARAMS_US.background));
+    var BACKGROUND_DEFAULTS_GLOBAL = JSON.parse(JSON.stringify(PARAMS_WORLD.background));
+    var BACKGROUND_DEFAULTS_CHINA = JSON.parse(JSON.stringify(PARAMS_CHINA.background));
 
     // Compute RoW defaults = Global - US - China
     function computeRoWDefaults() {
@@ -1532,6 +1536,14 @@
 
     function isCountryMode() {
         return getRegionMode() !== 'global';
+    }
+
+    // Return the active region's parameter object
+    function getRegionParams() {
+        var mode = getRegionMode();
+        if (mode === 'us') return PARAMS_US;
+        if (mode === 'china') return PARAMS_CHINA;
+        return PARAMS_WORLD;
     }
 
 
@@ -2296,11 +2308,13 @@
     var landRentChart = null;
     var landUseShareChart = null;
     var landIncomeShareChart = null;
+    var realConsumptionChart = null;
     var consumerBudgetChart = null;
     var incomeDistChart = null;
     var incomeCompChart = null;
     var netWorthChart = null;
     var giniChart = null;
+    var povertyChart = null;
     var sectorPriceChart = null;
 
     // Chart functions loaded from charts/*.js
@@ -2535,21 +2549,10 @@
             // Prepare consumption-side land parameters if in land mode
             let landParams = null;
             if (useLand) {
-                var landRegion = getRegionMode();
-                var M_physical, total_land, cat_exp_share;
-                if (landRegion === 'us') {
-                    M_physical = Object.assign({}, LAND_AREAS_US);
-                    total_land = TOTAL_LAND_HA_US;
-                    cat_exp_share = CAT_EXP_SHARES_US;
-                } else if (landRegion === 'china') {
-                    M_physical = Object.assign({}, LAND_AREAS_CHINA);
-                    total_land = TOTAL_LAND_HA_CHINA;
-                    cat_exp_share = CAT_EXP_SHARES_CHINA;
-                } else {
-                    M_physical = Object.assign({}, LAND_AREAS_WORLD);
-                    total_land = TOTAL_LAND_HA_WORLD;
-                    cat_exp_share = CAT_EXP_SHARES_WORLD;
-                }
+                var rp = getRegionParams();
+                var M_physical = Object.assign({}, rp.land_areas);
+                var total_land = rp.total_land_ha;
+                var cat_exp_share = rp.cat_exp_shares;
 
                 landParams = {
                     beta: params.beta,
@@ -3163,80 +3166,55 @@
         });
     });
 
-    // Populate base-year economy inputs from the appropriate defaults
+    // Populate base-year economy inputs from the active region's param file
     function updateBaseYearInputs() {
-        var mode = getRegionMode();
-        var bg;
-        if (mode === 'us') bg = BACKGROUND_DEFAULTS_US;
-        else if (mode === 'china') bg = BACKGROUND_DEFAULTS_CHINA;
-        else bg = BACKGROUND_DEFAULTS_GLOBAL;
+        var rp = getRegionParams();
 
-        document.getElementById('base_Y').value = bg["Output"][0];
-        document.getElementById('base_L').value = bg["Human Labor Force"][0];
-        document.getElementById('base_WAP').value = bg["Human Working Age Population"][0];
+        // Background time series
+        document.getElementById('base_Y').value = rp.background["Output"][0];
+        document.getElementById('base_L').value = rp.background["Human Labor Force"][0];
+        document.getElementById('base_WAP').value = rp.background["Human Working Age Population"][0];
 
-        // Swap income distribution CDF defaults
-        var cdf;
-        if (mode === 'us') cdf = CDF_DEFAULTS_US;
-        else if (mode === 'china') cdf = CDF_DEFAULTS_CHINA;
-        else cdf = CDF_DEFAULTS_WORLD;
+        // Newly region-specific production/capital params
+        document.getElementById('alpha').value = rp.alpha;
+        document.getElementById('theta').value = rp.theta;
+        document.getElementById('kappa').value = rp.kappa;
+        document.getElementById('delta_K').value = rp.delta_K;
+        document.getElementById('savings_rate').value = rp.savings_rate;
+        document.getElementById('initial_KY_ratio').value = rp.initial_KY_ratio;
+        document.getElementById('a_services').value = rp.a_services;
+        document.getElementById('land_cap_rate').value = rp.land_cap_rate;
+        // Income distribution CDF defaults
         var cdfKeys = ['wage', 'capital', 'ai', 'robot', 'land'];
         var pctLabels = ['1', '25', '50', '75', '90', '99', '999'];
         cdfKeys.forEach(function(key) {
             pctLabels.forEach(function(pct, i) {
                 var el = document.getElementById('cdf_' + key + '_' + pct);
-                if (el) el.value = cdf[key][i];
+                if (el) el.value = rp.cdf[key][i];
             });
         });
 
-        // Swap income multiplier defaults
-        var mult;
-        if (mode === 'us') mult = MULT_DEFAULTS_US;
-        else if (mode === 'china') mult = MULT_DEFAULTS_CHINA;
-        else mult = MULT_DEFAULTS_WORLD;
+        // Income multiplier defaults
         var multKeys = ['wage', 'capital', 'ai', 'robot', 'land'];
         var multPcts = ['5', '10', '25', '50', '75', '90', '95', '99', '999'];
         multKeys.forEach(function(key) {
             multPcts.forEach(function(pct, i) {
                 var el = document.getElementById('mult_' + key + '_' + pct);
-                if (el) el.value = mult[key].vals[i];
+                if (el) el.value = rp.mult[key].vals[i];
             });
         });
 
-        // Swap LFP defaults
-        var lfp;
-        if (mode === 'us') lfp = LFP_DEFAULTS_US;
-        else if (mode === 'china') lfp = LFP_DEFAULTS_CHINA;
-        else lfp = LFP_DEFAULTS_WORLD;
-        document.getElementById('lfp_target').value = lfp.lfp_target;
-        document.getElementById('frisch_elasticity').value = lfp.frisch_elasticity;
-        document.getElementById('logistic_s').value = lfp.logistic_s;
+        // LFP defaults
+        document.getElementById('lfp_target').value = rp.lfp_target;
+        document.getElementById('frisch_elasticity').value = rp.frisch_elasticity;
+        document.getElementById('logistic_s').value = rp.logistic_s;
 
-        // Swap service share default by region
-        var aServ;
-        if (mode === 'us') aServ = 0.77;
-        else if (mode === 'china') aServ = 0.53;
-        else aServ = 0.65;
-        document.getElementById('a_services').value = aServ;
+        // Land expenditure share
+        document.getElementById('land_exp_share').value = rp.land_exp_share;
 
-        // Swap land expenditure share default
-        var landExp;
-        if (mode === 'us') landExp = LAND_EXP_SHARE_US;
-        else if (mode === 'china') landExp = LAND_EXP_SHARE_CHINA;
-        else landExp = LAND_EXP_SHARE_WORLD;
-        document.getElementById('land_exp_share').value = landExp;
-
-        // Swap trusted labor defaults by mode
-        if (mode === 'us') {
-            document.getElementById('trust_num_workers').value = 100000;
-            document.getElementById('trust_avg_wage').value = 150000;
-        } else if (mode === 'china') {
-            document.getElementById('trust_num_workers').value = 100000;
-            document.getElementById('trust_avg_wage').value = 80000;
-        } else {
-            document.getElementById('trust_num_workers').value = 200000;
-            document.getElementById('trust_avg_wage').value = 115000;
-        }
+        // Trusted labor defaults
+        document.getElementById('trust_num_workers').value = rp.trust_num_workers;
+        document.getElementById('trust_avg_wage').value = rp.trust_avg_wage;
     }
 
     // Region toggle — rebuild table with all share rows, show/hide appropriate ones, update defaults

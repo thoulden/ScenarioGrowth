@@ -13,7 +13,7 @@ function createInterestChart(results, years) {
     var delta_K = parseFloat(document.getElementById('delta_K').value) || 0.05;
     var tau_k = parseFloat(document.getElementById('tau_k').value) || 0;
     var datasets = [
-        ds('r (gross rental rate)', results.map(function(r) { return r.r * 100; }), T.green),
+        ds('r (gross marginal product)', results.map(function(r) { return r.r * 100; }), T.green),
         ds('(1−τ_k)r − δ_K (net return)', results.map(function(r) { return ((1 - tau_k) * r.r - delta_K) * 100; }), T.cognitive)
     ];
     var ctx = document.getElementById('interestChart').getContext('2d');
