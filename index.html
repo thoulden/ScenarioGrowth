@@ -18,6 +18,7 @@
     <script src="model/solvers.js"></script>
     <script src="model/labor.js"></script>
     <script src="model/distribution.js"></script>
+    <script src="model/interpolation.js"></script>
     <!-- Chart theme, helpers, and individual chart modules -->
     <script src="charts/theme.js"></script>
     <script src="charts/wagesChart.js"></script>
@@ -42,7 +43,7 @@
     <script src="charts/incomeCompChart.js"></script>
     <script src="charts/incomeDistChart.js"></script>
     <script src="charts/netWorthChart.js"></script>
-    <script src="charts/giniChart.js"></script>3
+    <script src="charts/giniChart.js"></script>
     <script src="charts/sectorPriceChart.js"></script>
     <script src="model/sectorPrices.js"></script>
     <script src="charts/createCharts.js"></script>
@@ -110,11 +111,25 @@
             cursor: not-allowed;
         }
         .template-btn {
-            background: #28a745;
+            background: #555;
+            color: white;
             margin-top: 0;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: all 0.15s ease;
         }
         .template-btn:hover {
-            background: #1e7e34;
+            background: #333;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.15);
+        }
+        .template-btn:active {
+            background: #222;
         }
         .charts-section {
             display: grid;
@@ -236,8 +251,22 @@
             padding: 3px 4px;
             color: #555;
         }
+        .upload-label {
+            display: inline-block;
+            background: #555;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 500;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: all 0.15s ease;
+        }
         .upload-label:hover {
-            background: #5a6268 !important;
+            background: #333 !important;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.15);
         }
         .results-table {
             background: white;
@@ -365,18 +394,18 @@
             }
         }
 
-        /* Key params section */
+        /* Key params section - matches side panel style */
         .key-params-section {
-            background: #FFFEF8;
-            padding: 16px 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            background: #f9f9f9;
+            padding: 12px 16px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
             margin-bottom: 16px;
         }
         .key-params-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 14px 20px;
+            gap: 10px 16px;
         }
         @media (max-width: 900px) {
             .key-params-grid { grid-template-columns: repeat(2, 1fr); }
@@ -387,31 +416,390 @@
         }
         .key-params-grid .param-group label {
             font-weight: 600;
-            margin-bottom: 3px;
-            color: #444;
-            font-size: 13px;
+            margin-bottom: 2px;
+            color: #333;
+            font-size: 12px;
         }
         .key-params-grid .param-group input {
-            padding: 6px 8px;
+            padding: 5px 8px;
             border: 1px solid #ddd;
             border-radius: 4px;
-            font-size: 14px;
+            font-size: 13px;
             width: 100%;
         }
         .key-params-grid .param-group small {
             color: #888;
-            font-size: 11px;
-            margin-top: 3px;
+            font-size: 10px;
+            margin-top: 2px;
             line-height: 1.3;
         }
-        .key-params-section .run-row {
-            display: flex;
-            justify-content: flex-end;
-            margin-top: 14px;
+
+        /* Prominent Run Button - matches side panel style */
+        .run-button-container {
+            text-align: center;
+            padding: 12px 0;
+            margin-bottom: 16px;
         }
-        .key-params-section #runModel {
-            padding: 10px 28px;
+        .run-button-main {
+            background: #555;
+            color: white;
+            border: none;
+            padding: 12px 32px;
+            border-radius: 4px;
+            cursor: pointer;
             font-size: 15px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            transition: all 0.15s ease;
+            margin-top: 0;
+        }
+        .run-button-main:hover {
+            background: #333;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+        }
+        .run-button-main:active {
+            background: #222;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+        }
+        .run-button-main:disabled {
+            background: #aaa;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+        .run-button-hint {
+            font-size: 11px;
+            color: #888;
+            margin-top: 6px;
+        }
+
+        /* Region Toggle - button group style */
+        .region-toggle {
+            display: flex;
+            justify-content: center;
+            gap: 0;
+            margin-top: 12px;
+        }
+        .region-toggle input[type="radio"] {
+            display: none;
+        }
+        .region-toggle label {
+            background: #e0e0e0;
+            color: #555;
+            border: none;
+            padding: 10px 0;
+            width: 160px;
+            text-align: center;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.15s ease;
+        }
+        .region-toggle label:first-of-type {
+            border-radius: 4px 0 0 4px;
+        }
+        .region-toggle label:last-of-type {
+            border-radius: 0 4px 4px 0;
+        }
+        .region-toggle input[type="radio"]:checked + label {
+            background: #555;
+            color: white;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        }
+        .region-toggle label:hover:not(:has(+ input:checked)) {
+            background: #ccc;
+        }
+        /* Fix for hover when checked - needs different selector */
+        .region-toggle input[type="radio"]:not(:checked) + label:hover {
+            background: #ccc;
+        }
+        /* Loading state for region toggle */
+        .region-toggle.loading label {
+            pointer-events: none;
+            opacity: 0.6;
+        }
+        .region-toggle.loading label.selected::after {
+            content: '';
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            margin-left: 8px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Scenario Widget */
+        .scenario-widget {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            margin-bottom: 16px;
+        }
+        .widget-view-toggle {
+            display: flex;
+            gap: 0;
+            margin-bottom: 12px;
+        }
+        .widget-view-toggle button {
+            flex: 1;
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            background: #f5f5f5;
+            color: #555;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            margin: 0;
+        }
+        .widget-view-toggle button:first-child {
+            border-radius: 4px 0 0 4px;
+        }
+        .widget-view-toggle button:last-child {
+            border-radius: 0 4px 4px 0;
+        }
+        .widget-view-toggle button.active {
+            background: #555;
+            color: white;
+            border-color: #555;
+        }
+        .widget-view-toggle button:hover:not(.active) {
+            background: #e8e8e8;
+        }
+        .widget-stats {
+            display: flex;
+            gap: 16px;
+            padding: 8px 12px;
+            background: #f5f5f5;
+            border-radius: 4px;
+            font-size: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+        .widget-stat {
+            color: #555;
+        }
+        .widget-stat strong {
+            color: #333;
+        }
+        .widget-group {
+            border-bottom: 1px solid #eee;
+        }
+        .widget-group:last-child {
+            border-bottom: none;
+        }
+        .widget-group-header {
+            display: flex;
+            align-items: center;
+            padding: 10px 14px;
+            background: #f9f9f9;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 13px;
+            color: #333;
+            user-select: none;
+        }
+        .widget-group-header:hover {
+            background: #f0f0f0;
+        }
+        .widget-group-header .toggle-icon {
+            margin-right: 8px;
+            font-size: 10px;
+            transition: transform 0.2s;
+        }
+        .widget-group.collapsed .toggle-icon {
+            transform: rotate(-90deg);
+        }
+        .widget-group-content {
+            padding: 10px 14px;
+        }
+        .widget-group.collapsed .widget-group-content {
+            display: none;
+        }
+        .widget-variable {
+            margin-bottom: 12px;
+        }
+        .widget-variable:last-child {
+            margin-bottom: 0;
+        }
+        .widget-var-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 6px;
+        }
+        .widget-var-name {
+            font-weight: 500;
+            font-size: 12px;
+            color: #333;
+            min-width: 140px;
+        }
+        .widget-anchors {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+        }
+        .widget-anchor {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .widget-anchor label {
+            font-size: 11px;
+            color: #666;
+        }
+        .widget-anchor input {
+            width: 70px;
+            padding: 4px 6px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            font-size: 12px;
+            text-align: right;
+        }
+        .widget-anchor input:focus {
+            border-color: #555;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(85,85,85,0.15);
+        }
+        .widget-func-form {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .widget-func-form select {
+            padding: 4px 6px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            font-size: 11px;
+            background: white;
+            cursor: pointer;
+        }
+        .widget-sigmoid-params {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-left: 8px;
+        }
+        .widget-sigmoid-params.hidden {
+            display: none;
+        }
+        .widget-sigmoid-params label {
+            font-size: 10px;
+            color: #888;
+        }
+        .widget-sigmoid-params input {
+            width: 60px;
+            padding: 4px 6px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            font-size: 12px;
+            text-align: center;
+        }
+        .widget-sparkline {
+            height: 100px;
+            margin-top: 30px;
+            overflow: visible;
+            position: relative;
+            cursor: crosshair;
+        }
+        .widget-sparkline svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+            background: #fafafa;
+            border-radius: 3px;
+        }
+        .widget-sparkline path.sparkline-line {
+            fill: none;
+            stroke: #555;
+            stroke-width: 2;
+            vector-effect: non-scaling-stroke;
+        }
+        .widget-sparkline path.sparkline-area {
+            fill: rgba(85, 85, 85, 0.1);
+            stroke: none;
+        }
+        .widget-sparkline-hover {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 1px;
+            background: #333;
+            pointer-events: none;
+            display: none;
+        }
+        .widget-sparkline:hover .widget-sparkline-hover {
+            display: block;
+        }
+        .widget-sparkline-tooltip {
+            position: absolute;
+            background: #333;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            pointer-events: none;
+            white-space: nowrap;
+            z-index: 100;
+            top: -24px;
+            transform: translateX(-50%);
+            display: none;
+        }
+        .widget-sparkline:hover .widget-sparkline-tooltip {
+            display: block;
+        }
+        .widget-add-anchor-select {
+            background: #e8e8e8;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            padding: 2px 4px;
+            font-size: 11px;
+            color: #555;
+            cursor: pointer;
+            min-width: 36px;
+        }
+        .widget-add-anchor-select:hover {
+            background: #ddd;
+            border-color: #999;
+        }
+        .widget-add-anchor-select:focus {
+            outline: none;
+            border-color: #555;
+        }
+        .widget-remove-anchor {
+            background: transparent;
+            border: none;
+            color: #999;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 0 2px;
+            margin: 0;
+            line-height: 1;
+        }
+        .widget-remove-anchor:hover {
+            color: #c00;
+        }
+        .widget-apply-btn {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            background: #555;
+            color: white;
+            border: none;
+            border-radius: 0 0 8px 8px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .widget-apply-btn:hover {
+            background: #333;
         }
 
         /* Feature toggles bar */
@@ -488,31 +876,76 @@
 
     <div class="data-section">
         <h2>Scenario Data</h2>
-        <p>Edit the values below directly, or upload a CSV file to load a different scenario.</p>
-        <div style="margin-bottom: 15px; padding: 10px; background: #f0f7ff; border-radius: 4px; border: 1px solid #cce5ff;">
-            <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
-                <label style="display: flex; align-items: center; cursor: pointer;">
-                    <input type="radio" name="regionMode" id="regionUS" value="us" checked style="margin-right: 6px; width: 16px; height: 16px;">
-                    <span style="font-weight: 600; color: #004085;">US</span>
-                </label>
-                <label style="display: flex; align-items: center; cursor: pointer;">
-                    <input type="radio" name="regionMode" id="regionChina" value="china" style="margin-right: 6px; width: 16px; height: 16px;">
-                    <span style="font-weight: 600; color: #004085;">China</span>
-                </label>
-                <label style="display: flex; align-items: center; cursor: pointer;">
-                    <input type="radio" name="regionMode" id="regionGlobal" value="global" style="margin-right: 6px; width: 16px; height: 16px;">
-                    <span style="font-weight: 600; color: #004085;">Global</span>
-                </label>
-                <small style="color: #666;">(Country modes apply share fractions to global compute &amp; robots)</small>
-            </div>
+        <p>Define anchor points for each variable and choose interpolation method. Click "Apply to Table" to update.</p>
+
+        <!-- View Toggle -->
+        <div class="widget-view-toggle">
+            <button id="viewWidget" class="active">Widget View</button>
+            <button id="viewTable">Table View</button>
         </div>
-        <div id="scenarioTableWrapper" style="overflow-x: auto; margin-bottom: 15px;">
+
+        <!-- Scenario Widget -->
+        <div id="scenarioWidget" class="scenario-widget">
+            <!-- Capabilities Group -->
+            <div class="widget-group collapsed" data-group="capabilities">
+                <div class="widget-group-header">
+                    <span class="toggle-icon">&#x25BC;</span>
+                    Capabilities (Automation Frontiers)
+                </div>
+                <div class="widget-group-content" id="widgetCapabilities">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+            <!-- Efficiencies Group -->
+            <div class="widget-group collapsed" data-group="efficiencies">
+                <div class="widget-group-header">
+                    <span class="toggle-icon">&#x25BC;</span>
+                    Efficiencies (Human-Equivalents)
+                </div>
+                <div class="widget-group-content" id="widgetEfficiencies">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+            <!-- Quantities Group -->
+            <div class="widget-group collapsed" data-group="quantities">
+                <div class="widget-group-header">
+                    <span class="toggle-icon">&#x25BC;</span>
+                    Quantities (AI Copies, Robots)
+                </div>
+                <div class="widget-group-content" id="widgetQuantities">
+                    <!-- Stats Summary -->
+                    <div class="widget-stats" id="widgetStats">
+                        <span class="widget-stat" id="statAICopies" title="AI Copies doubling time"></span>
+                        <span class="widget-stat" id="statRobots" title="Robots doubling time"></span>
+                        <span class="widget-stat" id="statH100e" title="AI Runtime (H100e per AI) halving time"></span>
+                    </div>
+                    <!-- Variables populated by JS -->
+                </div>
+            </div>
+
+            <!-- Regional Shares Group -->
+            <div class="widget-group collapsed" data-group="shares">
+                <div class="widget-group-header">
+                    <span class="toggle-icon">&#x25BC;</span>
+                    Regional Shares
+                </div>
+                <div class="widget-group-content" id="widgetShares">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+            <button id="applyWidget" class="widget-apply-btn">Apply to Table</button>
+        </div>
+
+        <div id="scenarioTableWrapper" style="overflow-x: auto; margin-bottom: 15px; display: none;">
             <!-- Table built by JS on page load -->
         </div>
         <div class="file-input-wrapper">
             <button id="resetDefaults" class="template-btn" title="Reset table to template defaults">Reset Defaults</button>
             <button id="downloadTemplate" class="template-btn">Download CSV</button>
-            <label class="upload-label" style="display:inline-block; background:#6c757d; color:white; padding:8px 16px; border-radius:4px; cursor:pointer; font-size:14px;">
+            <label class="upload-label">
                 Upload CSV
                 <input type="file" id="fileInput" accept=".csv" style="display:none;">
             </label>
@@ -520,61 +953,25 @@
         <div id="status" class="status hidden"></div>
     </div>
 
-    <button class="side-panel-tab" id="sidePanelToggle" title="Advanced Parameters">Advanced Parameters &#x25C0;</button>
+    <button class="side-panel-tab" id="sidePanelToggle" title="Parameters">Parameters &#x25C0;</button>
 
     <div class="app-layout">
         <div class="main-content">
-            <!-- Key parameters (grid with descriptions) -->
-            <div class="key-params-section">
-                <div class="key-params-grid">
-                    <div class="param-group">
-                        <label for="eps">&epsilon; (cognitive vs physical)</label>
-                        <input type="number" id="eps" value="0.70" step="0.01" min="0.01">
-                        <small>Elasticity of substitution between cognitive and physical labor composites</small>
-                    </div>
-                    <div class="param-group">
-                        <label for="sig_c">&sigma;<sub>c</sub> (human vs AI)</label>
-                        <input type="number" id="sig_c" value="0.80" step="0.01" min="0.01">
-                        <small>Elasticity of substitution between human cognitive workers and AI</small>
-                    </div>
-                    <div class="param-group">
-                        <label for="sig_p">&sigma;<sub>p</sub> (human vs robot)</label>
-                        <input type="number" id="sig_p" value="0.60" step="0.01" min="0.01">
-                        <small>Elasticity of substitution between human physical workers and robots</small>
-                    </div>
-                    <div class="param-group">
-                        <label for="alpha">&alpha; (capital share)</label>
-                        <input type="number" id="alpha" value="0.36" step="0.01" min="0" max="1">
-                        <small>Capital's share in the production function</small>
-                    </div>
-                    <div class="param-group" id="sigma_K_container" style="display: none;">
-                        <label for="sigma_K">&sigma;<sub>K</sub> (capital-labor)</label>
-                        <input type="number" id="sigma_K" value="1.5" step="0.1" min="0.01" max="10">
-                        <small>Elasticity of substitution between capital and labor composites</small>
-                    </div>
-                    <div class="param-group">
-                        <label for="theta">&theta; (cognitive weight)</label>
-                        <input type="number" id="theta" value="0.68" step="0.01" min="0" max="1">
-                        <small>Weight on cognitive labor in the labor composite</small>
-                    </div>
-                    <div class="param-group">
-                        <label for="base_Y">Y<sub>0</sub> (base GDP)</label>
-                        <input type="text" id="base_Y" value="30.6T">
-                        <small>Initial gross world product (use K, M, B, T suffixes)</small>
-                    </div>
-                    <div class="param-group">
-                        <label for="base_L">L<sub>0</sub> (base labor force)</label>
-                        <input type="text" id="base_L" value="168.6M">
-                        <small>Initial labor force size (use K, M, B suffixes)</small>
-                    </div>
-                    <div class="param-group">
-                        <label for="base_WAP">WAP<sub>0</sub> (working-age pop.)</label>
-                        <input type="text" id="base_WAP" value="270.7M">
-                        <small>Initial working-age population (use K, M, B suffixes)</small>
-                    </div>
+            <!-- Prominent Run Button -->
+            <div class="run-button-container">
+                <button id="runModel" class="run-button-main">
+                    ▶ Run Model
+                </button>
+                <div class="region-toggle">
+                    <input type="radio" name="regionMode" id="regionUS" value="us" checked>
+                    <label for="regionUS">US</label>
+                    <input type="radio" name="regionMode" id="regionChina" value="china">
+                    <label for="regionChina">China</label>
+                    <input type="radio" name="regionMode" id="regionGlobal" value="global">
+                    <label for="regionGlobal">World</label>
                 </div>
-                <div class="run-row">
-                    <button id="runModel">Run Model</button>
+                <div class="run-button-hint">
+                    Switch regions to run model with region-specific parameters
                 </div>
             </div>
 
@@ -818,9 +1215,66 @@
             </div>
         </div>
 
-        <!-- Side Panel: Advanced Parameters -->
+        <!-- Side Panel: Parameters -->
         <div class="side-panel collapsed" id="sidePanel">
-            <h3>Advanced Parameters</h3>
+            <h3>Parameters</h3>
+
+            <details open>
+                <summary>Production Function</summary>
+                <div class="params-grid" style="margin-top: 8px;">
+                    <div class="param-group">
+                        <label for="eps">&epsilon; (cognitive vs physical)</label>
+                        <input type="number" id="eps" value="0.70" step="0.01" min="0.01">
+                        <small>CES elasticity between cognitive and physical labor</small>
+                    </div>
+                    <div class="param-group">
+                        <label for="sig_c">&sigma;<sub>c</sub> (human vs AI)</label>
+                        <input type="number" id="sig_c" value="0.80" step="0.01" min="0.01">
+                        <small>CES elasticity between human cognitive and AI</small>
+                    </div>
+                    <div class="param-group">
+                        <label for="sig_p">&sigma;<sub>p</sub> (human vs robot)</label>
+                        <input type="number" id="sig_p" value="0.60" step="0.01" min="0.01">
+                        <small>CES elasticity between human physical and robots</small>
+                    </div>
+                    <div class="param-group">
+                        <label for="alpha">&alpha; (capital share)</label>
+                        <input type="number" id="alpha" value="0.36" step="0.01" min="0" max="1">
+                        <small>Capital's share in production function</small>
+                    </div>
+                    <div class="param-group">
+                        <label for="theta">&theta; (cognitive weight)</label>
+                        <input type="number" id="theta" value="0.68" step="0.01" min="0" max="1">
+                        <small>Weight on cognitive labor composite</small>
+                    </div>
+                    <div class="param-group" id="sigma_K_container" style="display: none;">
+                        <label for="sigma_K">&sigma;<sub>K</sub> (capital-labor)</label>
+                        <input type="number" id="sigma_K" value="1.5" step="0.1" min="0.01" max="10">
+                        <small>CES elasticity between capital and labor</small>
+                    </div>
+                </div>
+            </details>
+
+            <details open>
+                <summary>Base Economy</summary>
+                <div class="params-grid" style="margin-top: 8px;">
+                    <div class="param-group">
+                        <label for="base_Y">Y<sub>0</sub> (base GDP)</label>
+                        <input type="text" id="base_Y" value="30.6T">
+                        <small>Initial GDP (use K, M, B, T suffixes)</small>
+                    </div>
+                    <div class="param-group">
+                        <label for="base_L">L<sub>0</sub> (labor force)</label>
+                        <input type="text" id="base_L" value="168.6M">
+                        <small>Initial labor force size</small>
+                    </div>
+                    <div class="param-group">
+                        <label for="base_WAP">WAP<sub>0</sub> (working-age pop.)</label>
+                        <input type="text" id="base_WAP" value="270.7M">
+                        <small>Initial working-age population</small>
+                    </div>
+                </div>
+            </details>
 
             <details open>
                 <summary>Model Features</summary>
@@ -2319,6 +2773,33 @@
     var _cachedCBYears = null;
 
     // ========================================
+    // Multi-Region Results Cache
+    // ========================================
+    var modelResultsCache = {
+        us: null,       // { results: [], distribution: [], params: {} }
+        china: null,
+        world: null,
+        gwpBreakdown: null,
+        timestamp: null,
+        isRunning: false
+    };
+
+    function invalidateCache() {
+        modelResultsCache.us = null;
+        modelResultsCache.china = null;
+        modelResultsCache.world = null;
+        modelResultsCache.gwpBreakdown = null;
+        modelResultsCache.timestamp = null;
+    }
+
+    function isCacheValid() {
+        return modelResultsCache.timestamp !== null &&
+               modelResultsCache.us !== null &&
+               modelResultsCache.china !== null &&
+               modelResultsCache.world !== null;
+    }
+
+    // ========================================
     // Chart Download / Side Panel
     // ========================================
 
@@ -2344,7 +2825,7 @@
         var isCollapsed = panel.classList.toggle('collapsed');
         if (isCollapsed) {
             tab.classList.remove('open');
-            tab.innerHTML = 'Advanced Parameters &#x25C0;';
+            tab.innerHTML = 'Parameters &#x25C0;';
         } else {
             tab.classList.add('open');
             tab.innerHTML = 'Close &#x25B6;';
@@ -2411,6 +2892,11 @@
         statusEl.classList.remove('hidden');
     }
 
+    function hideStatus() {
+        const statusEl = document.getElementById('status');
+        statusEl.classList.add('hidden');
+    }
+
     document.getElementById('fileInput').addEventListener('change', function(e) {
         const file = e.target.files[0];
         if (!file) return;
@@ -2421,6 +2907,10 @@
                 const csvText = event.target.result;
                 const parsed = parseCSV(csvText);
                 populateTableFromLoadedData(parsed);
+                // Sync widget to new table values
+                if (typeof syncTableToWidget === 'function') {
+                    syncTableToWidget();
+                }
                 showStatus(`Loaded ${parsed.length} years from "${file.name}". Review values in the table above.`, 'success');
             } catch (err) {
                 showStatus('Error parsing file: ' + err.message, 'error');
@@ -2520,11 +3010,37 @@
         return results;
     }
 
-    document.getElementById('runModel').addEventListener('click', function() {
+    // ========================================
+    // Run Model Core Function
+    // ========================================
+    function runModelCore() {
+        // Show loading state on region toggle
+        var regionToggle = document.querySelector('.region-toggle');
+        if (regionToggle) {
+            regionToggle.classList.add('loading');
+            // Mark the checked label as selected for the spinner
+            var checkedRadio = regionToggle.querySelector('input:checked');
+            if (checkedRadio) {
+                var label = regionToggle.querySelector('label[for="' + checkedRadio.id + '"]');
+                if (label) label.classList.add('selected');
+            }
+        }
+
+        // Use setTimeout to allow the loading UI to render before heavy computation
+        setTimeout(function() {
+            _runModelCoreInner(regionToggle);
+        }, 10);
+    }
+
+    function _runModelCoreInner(regionToggle) {
         try {
             loadedData = readTableData();
         } catch (err) {
             showStatus('Error reading scenario data: ' + err.message, 'error');
+            if (regionToggle) {
+                regionToggle.classList.remove('loading');
+                regionToggle.querySelectorAll('label').forEach(function(l) { l.classList.remove('selected'); });
+            }
             return;
         }
 
@@ -2975,19 +3491,24 @@
 
             createResultsTable(results, useLand);
 
-            const bottlenecks = [];
-            if (useLand) bottlenecks.push('land');
-            const modeStr = bottlenecks.length ? bottlenecks.join(' + ') + ' bottleneck' : 'baseline';
-            const laborStr = doEndogenousLabor ? ' with endogenous labor' : '';
-            const taxStr = useTaxation ? ' with taxation' : '';
-            const predictStr = doPredictedOutput ? ' with predicted Y & K' : '';
-            const distStr = useDistribution ? ' with income distribution' : '';
-            showStatus(`Model (${modeStr}${laborStr}${taxStr}${predictStr}${distStr}) completed successfully!`, 'success');
+            // Clear any previous status message on successful run
+            hideStatus();
         } catch (err) {
             showStatus('Error running model: ' + err.message, 'error');
             console.error(err);
+        } finally {
+            // Remove loading state
+            var regionToggle = document.querySelector('.region-toggle');
+            if (regionToggle) {
+                regionToggle.classList.remove('loading');
+                regionToggle.querySelectorAll('label').forEach(function(l) { l.classList.remove('selected'); });
+            }
         }
-    });
+    }
+
+    // Run Model Button Handlers
+    document.getElementById('runModel').addEventListener('click', runModelCore);
+    document.getElementById('runModelSidePanel') && document.getElementById('runModelSidePanel').addEventListener('click', runModelCore);
 
     // Toggle land parameter visibility
     document.getElementById('useLand').addEventListener('change', function() {
@@ -3152,6 +3673,10 @@
             buildScenarioTable(getTemplateRowsForMode(), TEMPLATE_YEARS, ALL_SHARE_ROWS);
             updateShareRowVisibility();
             updateBaseYearInputs();
+            // Sync widget to reset values
+            if (typeof syncTableToWidget === 'function') {
+                syncTableToWidget();
+            }
             showStatus('Table reset to default values from default_scenario.csv.', 'info');
         });
     });
@@ -3207,14 +3732,644 @@
         document.getElementById('trust_avg_wage').value = rp.trust_avg_wage;
     }
 
-    // Region toggle — rebuild table with all share rows, show/hide appropriate ones, update defaults
+    // Region toggle — update base year inputs when switching regions
     document.querySelectorAll('input[name="regionMode"]').forEach(function(radio) {
         radio.addEventListener('change', function() {
-            buildScenarioTable(getTemplateRowsForMode(), TEMPLATE_YEARS, ALL_SHARE_ROWS);
-            updateShareRowVisibility();
             updateBaseYearInputs();
+            // Re-run model for new region
+            runModelCore();
         });
     });
+
+    // ========================================
+    // SCENARIO WIDGET
+    // ========================================
+
+    // Widget variable definitions mapped to table rows
+    var WIDGET_VARS = {
+        capabilities: [
+            { name: "Cognitive Automation Frontier", tableLabel: "Cognitive Automation Frontier", unit: "%", isPercent: true },
+            { name: "Physical Automation Frontier", tableLabel: "Physical Automation Frontier", unit: "%", isPercent: true }
+        ],
+        efficiencies: [
+            { name: "Human-equivs per AI Copy", tableLabel: "Human-equivs per AI Copy", unit: "", isPercent: false },
+            { name: "Human-equivs per Robot", tableLabel: "Human-equivs per Robot", unit: "", isPercent: false }
+        ],
+        quantities: [
+            { name: "AI Copies", tableLabel: "AI Copies", unit: "", isPercent: false },
+            { name: "Robots", tableLabel: "Robots", unit: "", isPercent: false },
+            { name: "AI Runtime (H100e per AI)", tableLabel: "AI Copies per H100e", unit: "", isPercent: false, isInverse: true }
+        ],
+        shares: [
+            { name: "US Share of Compute", tableLabel: "US Share of Compute", unit: "%", isPercent: true },
+            { name: "US Share of Robots", tableLabel: "US Share of Robots", unit: "%", isPercent: true },
+            { name: "China Share of Compute", tableLabel: "China Share of Compute", unit: "%", isPercent: true },
+            { name: "China Share of Robots", tableLabel: "China Share of Robots", unit: "%", isPercent: true }
+        ]
+    };
+
+    // Widget state: stores anchor points and interpolation settings for each variable
+    var widgetState = {};
+
+    // Initialize widget state from table values
+    function initWidgetState() {
+        Object.keys(WIDGET_VARS).forEach(function(group) {
+            WIDGET_VARS[group].forEach(function(v) {
+                var tableValues = getTableRowValues(v.tableLabel);
+                if (tableValues) {
+                    var startVal = parseCell(tableValues[0]);
+                    var endVal = parseCell(tableValues[tableValues.length - 1]);
+                    // Handle percentages
+                    if (v.isPercent) {
+                        startVal = startVal * 100;
+                        endVal = endVal * 100;
+                    }
+                    // Handle inverse variables (e.g., H100e per AI is inverse of AI per H100e)
+                    if (v.isInverse && startVal !== 0 && endVal !== 0) {
+                        startVal = 1 / startVal;
+                        endVal = 1 / endVal;
+                    }
+                    widgetState[v.tableLabel] = {
+                        anchors: [
+                            { year: TEMPLATE_YEARS[0], value: startVal },
+                            { year: TEMPLATE_YEARS[TEMPLATE_YEARS.length - 1], value: endVal }
+                        ],
+                        method: 'exponential',
+                        midpointYear: Math.round((TEMPLATE_YEARS[0] + TEMPLATE_YEARS[TEMPLATE_YEARS.length - 1]) / 2),
+                        steepness: 1.0
+                    };
+                }
+            });
+        });
+    }
+
+    // Get table row values by label
+    function getTableRowValues(label) {
+        // Check TEMPLATE_ROWS
+        for (var i = 0; i < TEMPLATE_ROWS.length; i++) {
+            if (TEMPLATE_ROWS[i].label === label && TEMPLATE_ROWS[i].values) {
+                return TEMPLATE_ROWS[i].values;
+            }
+        }
+        // Check ALL_SHARE_ROWS
+        for (var i = 0; i < ALL_SHARE_ROWS.length; i++) {
+            if (ALL_SHARE_ROWS[i].label === label && ALL_SHARE_ROWS[i].values) {
+                return ALL_SHARE_ROWS[i].values;
+            }
+        }
+        return null;
+    }
+
+    // Format value for display
+    function formatWidgetValue(val, isPercent) {
+        if (isPercent) {
+            return val.toFixed(0);
+        }
+        return formatLargeNumber(val);
+    }
+
+    // Format large numbers with K/M/B/T suffixes
+    function formatLargeNumber(val) {
+        if (val === 0) return '0';
+        var absVal = Math.abs(val);
+        if (absVal >= 1e12) return (val / 1e12).toPrecision(3) + 'T';
+        if (absVal >= 1e9) return (val / 1e9).toPrecision(3) + 'B';
+        if (absVal >= 1e6) return (val / 1e6).toPrecision(3) + 'M';
+        if (absVal >= 1e3) return (val / 1e3).toPrecision(3) + 'K';
+        if (absVal < 0.01 && absVal > 0) return val.toExponential(2);
+        if (absVal < 1) return val.toPrecision(3);
+        return val.toPrecision(3);
+    }
+
+    // Parse widget input value
+    function parseWidgetInput(str, isPercent) {
+        if (!str) return 0;
+        str = String(str).trim().toUpperCase();
+        var multiplier = 1;
+        if (str.endsWith('T')) { multiplier = 1e12; str = str.slice(0, -1); }
+        else if (str.endsWith('B')) { multiplier = 1e9; str = str.slice(0, -1); }
+        else if (str.endsWith('M')) { multiplier = 1e6; str = str.slice(0, -1); }
+        else if (str.endsWith('K')) { multiplier = 1e3; str = str.slice(0, -1); }
+        var val = parseFloat(str) * multiplier;
+        return isNaN(val) ? 0 : val;
+    }
+
+    // Generate sparkline SVG data (line path, area path, and points array)
+    // Optional fixedMin/fixedMax for percentage variables (0-100 scale)
+    function generateSparklineData(values, width, height, fixedMin, fixedMax) {
+        if (!values || values.length < 2) return { linePath: '', areaPath: '', points: [] };
+        var min = (fixedMin !== undefined) ? fixedMin : Math.min.apply(null, values);
+        var max = (fixedMax !== undefined) ? fixedMax : Math.max.apply(null, values);
+        var range = max - min || 1;
+        var padding = 6; // vertical padding
+        var points = values.map(function(v, i) {
+            var x = (i / (values.length - 1)) * width;
+            var y = height - padding - ((v - min) / range) * (height - padding * 2);
+            return { x: x, y: y, value: v, year: TEMPLATE_YEARS[i] };
+        });
+
+        var linePoints = points.map(function(p) { return p.x.toFixed(1) + ',' + p.y.toFixed(1); });
+        var linePath = 'M' + linePoints.join('L');
+
+        // Area path (closed polygon)
+        var areaPath = linePath + 'L' + width + ',' + height + 'L0,' + height + 'Z';
+
+        return { linePath: linePath, areaPath: areaPath, points: points };
+    }
+
+    // Legacy function for compatibility
+    function generateSparklinePath(values, width, height) {
+        return generateSparklineData(values, width, height).linePath;
+    }
+
+    // Render widget variable HTML
+    function renderWidgetVariable(v, group) {
+        var state = widgetState[v.tableLabel] || {
+            anchors: [{ year: 2025, value: 0 }, { year: 2040, value: 100 }],
+            method: 'linear',
+            midpointYear: 2032,
+            steepness: 1.0
+        };
+        var id = v.tableLabel.replace(/\s+/g, '_');
+        var unit = v.isPercent ? '%' : '';
+
+        var html = '<div class="widget-variable" data-label="' + v.tableLabel + '" data-ispercent="' + (v.isPercent ? '1' : '0') + '">';
+        html += '<div class="widget-var-header">';
+        html += '<span class="widget-var-name">' + v.name + '</span>';
+        html += '<div class="widget-anchors">';
+
+        // Render all anchors
+        var usedYears = state.anchors.map(function(a) { return a.year; });
+        for (var i = 0; i < state.anchors.length; i++) {
+            var anchor = state.anchors[i];
+            var isEdge = (i === 0 || i === state.anchors.length - 1);
+            html += '<div class="widget-anchor" data-anchor-idx="' + i + '">';
+            html += '<label>' + anchor.year + ':</label>';
+            html += '<input type="text" class="widget-anchor-input" data-anchor="' + i + '" value="' + formatWidgetValue(anchor.value, v.isPercent) + '">' + unit;
+            // Add remove button for middle anchors
+            if (!isEdge) {
+                html += '<button class="widget-remove-anchor" data-anchor="' + i + '" title="Remove anchor">&times;</button>';
+            }
+            html += '</div>';
+        }
+
+        // Add anchor year selector (only show if there are available years)
+        var availableYears = TEMPLATE_YEARS.filter(function(y) {
+            return usedYears.indexOf(y) === -1;
+        });
+        if (availableYears.length > 0) {
+            html += '<select class="widget-add-anchor-select" title="Add anchor at year">';
+            html += '<option value="">+</option>';
+            for (var j = 0; j < availableYears.length; j++) {
+                html += '<option value="' + availableYears[j] + '">' + availableYears[j] + '</option>';
+            }
+            html += '</select>';
+        }
+        html += '</div>';
+
+        // Functional form selector
+        html += '<div class="widget-func-form">';
+        html += '<select class="widget-method-select">';
+        html += '<option value="linear"' + (state.method === 'linear' ? ' selected' : '') + '>Linear</option>';
+        html += '<option value="exponential"' + (state.method === 'exponential' ? ' selected' : '') + '>Exponential</option>';
+        html += '<option value="sigmoid"' + (state.method === 'sigmoid' ? ' selected' : '') + '>Sigmoid</option>';
+        html += '</select>';
+
+        // Sigmoid parameters
+        var sigmoidHidden = state.method !== 'sigmoid' ? ' hidden' : '';
+        html += '<div class="widget-sigmoid-params' + sigmoidHidden + '">';
+        html += '<label>Mid:</label><input type="number" class="widget-midpoint-input" value="' + state.midpointYear + '" min="2025" max="2040">';
+        html += '<label>k:</label><input type="number" class="widget-steepness-input" value="' + state.steepness.toFixed(1) + '" min="0.1" max="3" step="0.1">';
+        html += '</div>';
+        html += '</div>';
+        html += '</div>';
+
+        // Sparkline preview with area, line, hover line, and tooltip
+        html += '<div class="widget-sparkline" data-label="' + v.tableLabel + '">';
+        html += '<svg viewBox="0 0 200 100" preserveAspectRatio="none">';
+        html += '<path class="sparkline-area" d=""></path>';
+        html += '<path class="sparkline-line" d=""></path>';
+        html += '</svg>';
+        html += '<div class="widget-sparkline-hover"></div>';
+        html += '<div class="widget-sparkline-tooltip"></div>';
+        html += '</div>';
+        html += '</div>';
+
+        return html;
+    }
+
+    // Render all widget groups
+    function renderWidget() {
+        Object.keys(WIDGET_VARS).forEach(function(group) {
+            var container = document.getElementById('widget' + group.charAt(0).toUpperCase() + group.slice(1));
+            if (!container) return;
+            var html = '';
+            WIDGET_VARS[group].forEach(function(v) {
+                html += renderWidgetVariable(v, group);
+            });
+            container.innerHTML = html;
+        });
+        updateAllSparklines();
+    }
+
+    // Store sparkline data for hover interaction
+    var sparklineDataCache = {};
+
+    // Update sparkline for a variable
+    function updateSparkline(label) {
+        var state = widgetState[label];
+        if (!state) return;
+
+        var varDef = null;
+        Object.keys(WIDGET_VARS).forEach(function(g) {
+            WIDGET_VARS[g].forEach(function(v) {
+                if (v.tableLabel === label) varDef = v;
+            });
+        });
+
+        var values = interpolatePath(state.anchors, TEMPLATE_YEARS, state.method, {
+            midpointYear: state.midpointYear,
+            steepness: state.steepness
+        });
+
+        var sparklineContainer = document.querySelector('.widget-sparkline[data-label="' + label + '"]');
+        if (!sparklineContainer) return;
+
+        // For percentage variables, fix scale to 0-100
+        var data;
+        if (varDef && varDef.isPercent) {
+            data = generateSparklineData(values, 200, 100, 0, 100);
+        } else {
+            data = generateSparklineData(values, 200, 100);
+        }
+        sparklineDataCache[label] = { data: data, varDef: varDef };
+
+        var linePath = sparklineContainer.querySelector('.sparkline-line');
+        var areaPath = sparklineContainer.querySelector('.sparkline-area');
+
+        if (linePath) linePath.setAttribute('d', data.linePath);
+        if (areaPath) areaPath.setAttribute('d', data.areaPath);
+    }
+
+    // Update all sparklines
+    function updateAllSparklines() {
+        Object.keys(widgetState).forEach(function(label) {
+            updateSparkline(label);
+        });
+        updateWidgetStats();
+    }
+
+    // Compute average doubling/halving time from anchors (returns months)
+    function computeDoublingTime(anchors) {
+        if (!anchors || anchors.length < 2) return null;
+        var sorted = anchors.slice().sort(function(a, b) { return a.year - b.year; });
+        var startYear = sorted[0].year;
+        var endYear = sorted[sorted.length - 1].year;
+        var startVal = sorted[0].value;
+        var endVal = sorted[sorted.length - 1].value;
+
+        if (startVal <= 0 || endVal <= 0) return null;
+
+        var years = endYear - startYear;
+        if (years <= 0) return null;
+
+        // Growth rate: endVal = startVal * 2^(years/doublingTimeYears)
+        // ln(endVal/startVal) = (years/doublingTimeYears) * ln(2)
+        // doublingTimeYears = years * ln(2) / ln(endVal/startVal)
+        var ratio = endVal / startVal;
+        if (ratio === 1) return Infinity; // No growth
+
+        var doublingTimeYears = years * Math.LN2 / Math.log(ratio);
+        return doublingTimeYears * 12; // Convert to months
+    }
+
+    // Update the stats display
+    function updateWidgetStats() {
+        var aiState = widgetState['AI Copies'];
+        var robotState = widgetState['Robots'];
+        var h100eState = widgetState['AI Copies per H100e'];
+
+        var statAI = document.getElementById('statAICopies');
+        var statRobots = document.getElementById('statRobots');
+        var statH100e = document.getElementById('statH100e');
+
+        if (statAI && aiState) {
+            var dt = computeDoublingTime(aiState.anchors);
+            if (dt !== null && isFinite(dt) && dt > 0) {
+                statAI.innerHTML = '<strong>AI Copies:</strong> ' + dt.toFixed(1) + ' mo doubling';
+            } else if (dt !== null && isFinite(dt) && dt < 0) {
+                statAI.innerHTML = '<strong>AI Copies:</strong> ' + (-dt).toFixed(1) + ' mo halving';
+            } else {
+                statAI.innerHTML = '<strong>AI Copies:</strong> flat';
+            }
+        }
+
+        if (statRobots && robotState) {
+            var dt = computeDoublingTime(robotState.anchors);
+            if (dt !== null && isFinite(dt) && dt > 0) {
+                statRobots.innerHTML = '<strong>Robots:</strong> ' + dt.toFixed(1) + ' mo doubling';
+            } else if (dt !== null && isFinite(dt) && dt < 0) {
+                statRobots.innerHTML = '<strong>Robots:</strong> ' + (-dt).toFixed(1) + ' mo halving';
+            } else {
+                statRobots.innerHTML = '<strong>Robots:</strong> flat';
+            }
+        }
+
+        if (statH100e && h100eState) {
+            // H100e per AI is the inverse variable - so halving time for runtime = doubling time for efficiency
+            var dt = computeDoublingTime(h100eState.anchors);
+            if (dt !== null && isFinite(dt) && dt > 0) {
+                // Runtime is doubling = efficiency halving (getting worse)
+                statH100e.innerHTML = '<strong>H100e/AI:</strong> ' + dt.toFixed(1) + ' mo doubling';
+            } else if (dt !== null && isFinite(dt) && dt < 0) {
+                // Runtime is halving = efficiency doubling (getting better)
+                statH100e.innerHTML = '<strong>H100e/AI:</strong> ' + (-dt).toFixed(1) + ' mo halving';
+            } else {
+                statH100e.innerHTML = '<strong>H100e/AI:</strong> flat';
+            }
+        }
+    }
+
+    // Apply widget values to table
+    function applyWidgetToTable() {
+        Object.keys(widgetState).forEach(function(label) {
+            var state = widgetState[label];
+            var varDef = null;
+            Object.keys(WIDGET_VARS).forEach(function(g) {
+                WIDGET_VARS[g].forEach(function(v) {
+                    if (v.tableLabel === label) varDef = v;
+                });
+            });
+            if (!varDef) return;
+
+            var values = interpolatePath(state.anchors, TEMPLATE_YEARS, state.method, {
+                midpointYear: state.midpointYear,
+                steepness: state.steepness
+            });
+
+            // Invert values for inverse variables before writing to table
+            if (varDef.isInverse) {
+                values = values.map(function(val) {
+                    return val !== 0 ? 1 / val : 0;
+                });
+            }
+
+            // Format values for table
+            var formattedValues = values.map(function(val) {
+                if (varDef.isPercent) {
+                    return (val).toFixed(0) + '%';
+                }
+                return formatLargeNumber(val);
+            });
+
+            // Update TEMPLATE_ROWS or ALL_SHARE_ROWS
+            var found = false;
+            for (var i = 0; i < TEMPLATE_ROWS.length; i++) {
+                if (TEMPLATE_ROWS[i].label === label && !TEMPLATE_ROWS[i].derived) {
+                    TEMPLATE_ROWS[i].values = formattedValues;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                for (var i = 0; i < ALL_SHARE_ROWS.length; i++) {
+                    if (ALL_SHARE_ROWS[i].label === label) {
+                        ALL_SHARE_ROWS[i].values = formattedValues;
+                        break;
+                    }
+                }
+            }
+        });
+
+        // Rebuild table with new values
+        buildScenarioTable(getTemplateRowsForMode(), TEMPLATE_YEARS, ALL_SHARE_ROWS);
+        updateShareRowVisibility();
+        showStatus('Widget values applied to table.', 'success');
+    }
+
+    // Sync table values to widget state
+    function syncTableToWidget() {
+        Object.keys(WIDGET_VARS).forEach(function(group) {
+            WIDGET_VARS[group].forEach(function(v) {
+                var tableValues = getTableRowValues(v.tableLabel);
+                if (tableValues) {
+                    var startVal = parseCell(tableValues[0]);
+                    var endVal = parseCell(tableValues[tableValues.length - 1]);
+                    if (v.isPercent) {
+                        startVal = startVal * 100;
+                        endVal = endVal * 100;
+                    }
+                    // Invert for inverse variables (widget shows inverse of table value)
+                    if (v.isInverse && startVal !== 0 && endVal !== 0) {
+                        startVal = 1 / startVal;
+                        endVal = 1 / endVal;
+                    }
+                    if (widgetState[v.tableLabel]) {
+                        widgetState[v.tableLabel].anchors[0].value = startVal;
+                        widgetState[v.tableLabel].anchors[widgetState[v.tableLabel].anchors.length - 1].value = endVal;
+                    }
+                }
+            });
+        });
+        renderWidget();
+    }
+
+    // Widget event handlers
+    function setupWidgetEventHandlers() {
+        // Group collapse/expand
+        document.querySelectorAll('.widget-group-header').forEach(function(header) {
+            header.addEventListener('click', function() {
+                var group = this.parentElement;
+                group.classList.toggle('collapsed');
+            });
+        });
+
+        // View toggle
+        document.getElementById('viewWidget').addEventListener('click', function() {
+            document.getElementById('viewWidget').classList.add('active');
+            document.getElementById('viewTable').classList.remove('active');
+            document.getElementById('scenarioWidget').style.display = 'block';
+            document.getElementById('scenarioTableWrapper').style.display = 'none';
+        });
+
+        document.getElementById('viewTable').addEventListener('click', function() {
+            document.getElementById('viewTable').classList.add('active');
+            document.getElementById('viewWidget').classList.remove('active');
+            document.getElementById('scenarioWidget').style.display = 'none';
+            document.getElementById('scenarioTableWrapper').style.display = 'block';
+        });
+
+        // Apply button
+        document.getElementById('applyWidget').addEventListener('click', applyWidgetToTable);
+
+        // Delegate events for dynamic widget content
+        document.getElementById('scenarioWidget').addEventListener('input', function(e) {
+            var varEl = e.target.closest('.widget-variable');
+            if (!varEl) return;
+            var label = varEl.getAttribute('data-label');
+            if (!widgetState[label]) return;
+
+            // Find varDef for this label
+            var varDef = null;
+            Object.keys(WIDGET_VARS).forEach(function(g) {
+                WIDGET_VARS[g].forEach(function(v) {
+                    if (v.tableLabel === label) varDef = v;
+                });
+            });
+
+            if (e.target.classList.contains('widget-anchor-input')) {
+                var anchorIdx = parseInt(e.target.getAttribute('data-anchor'));
+                var val = parseWidgetInput(e.target.value, varDef && varDef.isPercent);
+                widgetState[label].anchors[anchorIdx].value = val;
+                updateSparkline(label);
+            } else if (e.target.classList.contains('widget-midpoint-input')) {
+                widgetState[label].midpointYear = parseInt(e.target.value) || 2032;
+                updateSparkline(label);
+            } else if (e.target.classList.contains('widget-steepness-input')) {
+                widgetState[label].steepness = parseFloat(e.target.value) || 1.0;
+                updateSparkline(label);
+            }
+        });
+
+        document.getElementById('scenarioWidget').addEventListener('change', function(e) {
+            if (e.target.classList.contains('widget-method-select')) {
+                var varEl = e.target.closest('.widget-variable');
+                if (!varEl) return;
+                var label = varEl.getAttribute('data-label');
+                if (!widgetState[label]) return;
+
+                widgetState[label].method = e.target.value;
+
+                // Show/hide sigmoid params
+                var sigmoidParams = varEl.querySelector('.widget-sigmoid-params');
+                if (sigmoidParams) {
+                    if (e.target.value === 'sigmoid') {
+                        sigmoidParams.classList.remove('hidden');
+                    } else {
+                        sigmoidParams.classList.add('hidden');
+                    }
+                }
+                updateSparkline(label);
+            }
+        });
+
+        // Add anchor via year selector
+        document.getElementById('scenarioWidget').addEventListener('change', function(e) {
+            if (e.target.classList.contains('widget-add-anchor-select')) {
+                var selectedYear = parseInt(e.target.value);
+                if (!selectedYear) return;
+
+                var varEl = e.target.closest('.widget-variable');
+                if (!varEl) return;
+                var label = varEl.getAttribute('data-label');
+                if (!widgetState[label]) return;
+
+                var anchors = widgetState[label].anchors;
+
+                // Interpolate value for this year
+                var interpValues = interpolatePath(anchors, [selectedYear], widgetState[label].method, {
+                    midpointYear: widgetState[label].midpointYear,
+                    steepness: widgetState[label].steepness
+                });
+                var newValue = interpValues[0];
+
+                // Insert anchor in sorted order
+                anchors.push({ year: selectedYear, value: newValue });
+                anchors.sort(function(a, b) { return a.year - b.year; });
+
+                // Re-render widget
+                renderWidget();
+            }
+        });
+
+        // Remove anchor button
+        document.getElementById('scenarioWidget').addEventListener('click', function(e) {
+            // Remove anchor button
+            if (e.target.classList.contains('widget-remove-anchor')) {
+                var varEl = e.target.closest('.widget-variable');
+                if (!varEl) return;
+                var label = varEl.getAttribute('data-label');
+                if (!widgetState[label]) return;
+
+                var anchorIdx = parseInt(e.target.getAttribute('data-anchor'));
+                var anchors = widgetState[label].anchors;
+
+                if (anchors.length <= 2) {
+                    showStatus('Must have at least 2 anchor points.', 'info');
+                    return;
+                }
+
+                anchors.splice(anchorIdx, 1);
+                renderWidget();
+            }
+        });
+
+        // Sparkline hover for tooltip
+        document.getElementById('scenarioWidget').addEventListener('mousemove', function(e) {
+            var sparkline = e.target.closest('.widget-sparkline');
+            if (!sparkline) return;
+
+            var label = sparkline.getAttribute('data-label');
+            var cached = sparklineDataCache[label];
+            if (!cached || !cached.data || !cached.data.points) return;
+
+            var rect = sparkline.getBoundingClientRect();
+            var x = e.clientX - rect.left;
+            var width = rect.width;
+            var svgWidth = 200; // viewBox width
+            var svgX = (x / width) * svgWidth;
+
+            // Find closest point
+            var points = cached.data.points;
+            var closest = points[0];
+            var closestDist = Math.abs(svgX - closest.x);
+            for (var i = 1; i < points.length; i++) {
+                var dist = Math.abs(svgX - points[i].x);
+                if (dist < closestDist) {
+                    closestDist = dist;
+                    closest = points[i];
+                }
+            }
+
+            // Update vertical hover line position
+            var hoverLine = sparkline.querySelector('.widget-sparkline-hover');
+            if (hoverLine) {
+                var lineX = (closest.x / svgWidth) * width;
+                hoverLine.style.left = lineX + 'px';
+            }
+
+            // Update tooltip
+            var tooltip = sparkline.querySelector('.widget-sparkline-tooltip');
+            if (tooltip && closest && closest.value !== undefined) {
+                var isPercent = cached.varDef && cached.varDef.isPercent;
+                var valueStr;
+                try {
+                    if (isPercent) {
+                        valueStr = closest.value.toFixed(0) + '%';
+                    } else {
+                        valueStr = formatLargeNumber(closest.value);
+                    }
+                    tooltip.textContent = closest.year + ': ' + valueStr;
+                } catch (err) {
+                    tooltip.textContent = closest.year + ': ' + closest.value;
+                }
+                // Position tooltip at hover line
+                var tooltipX = (closest.x / svgWidth) * width;
+                tooltip.style.left = tooltipX + 'px';
+            }
+        });
+    }
+
+    // Initialize widget on page load
+    function initWidget() {
+        initWidgetState();
+        renderWidget();
+        setupWidgetEventHandlers();
+    }
+
+    // ========================================
+    // END SCENARIO WIDGET
+    // ========================================
 
     // Initialize: build table with hardcoded defaults first, then overlay with CSV
     buildScenarioTable(getTemplateRowsForMode(), TEMPLATE_YEARS, ALL_SHARE_ROWS);
@@ -3226,6 +4381,12 @@
             updateShareRowVisibility();
             updateBaseYearInputs();
         }
+        // Initialize widget after table is built
+        initWidget();
+        // Auto-run model on page load (after CSV loaded)
+        setTimeout(function() {
+            runModelCore();
+        }, 100);
     });
     </script>
 </body>
