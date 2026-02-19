@@ -268,31 +268,6 @@
             background: #333 !important;
             box-shadow: 0 3px 6px rgba(0,0,0,0.15);
         }
-        .results-table {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            margin-top: 20px;
-            overflow-x: auto;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 12px;
-        }
-        th, td {
-            padding: 8px;
-            text-align: right;
-            border-bottom: 1px solid #eee;
-        }
-        th {
-            background: #f8f9fa;
-            font-weight: 600;
-        }
-        td:first-child, th:first-child {
-            text-align: left;
-        }
         /* App layout: main content + side panel */
         .app-layout {
             display: flex;
@@ -1216,10 +1191,6 @@
                 </div>
             </div>
 
-            <div id="resultsTable" class="results-table hidden">
-                <h3>Detailed Results</h3>
-                <div id="tableContainer"></div>
-            </div>
         </div>
 
         <!-- Side Panel: Parameters -->
@@ -2826,49 +2797,6 @@
         document.getElementById('runModel').click();
     });
 
-    function createResultsTable(results, useLand = false) {
-        const container = document.getElementById('tableContainer');
-
-        let html = '<table><thead><tr>';
-        html += '<th>Year</th><th>r</th><th>K_Y/K</th><th>K_C/K</th><th>K_R/K</th><th>mu_h_c</th><th>mu_h_p</th><th>w_c</th><th>q_c</th><th>w_p</th><th>q_p</th>';
-        if (useLand) {
-            html += '<th>E_t</th><th>R_total</th><th>Land%E</th>';
-            for (var ci = 0; ci < LAND_ENDOGENOUS_CATEGORIES.length; ci++) {
-                html += '<th>v_' + LAND_ENDOGENOUS_CATEGORIES[ci].substring(0, 4) + '</th>';
-            }
-        }
-        html += '</tr></thead><tbody>';
-
-        for (const row of results) {
-            html += '<tr>';
-            html += `<td>${row.year}</td>`;
-            html += `<td>${row.r.toExponential(2)}</td>`;
-            html += `<td>${row.share_KY.toFixed(4)}</td>`;
-            html += `<td>${row.share_KC.toFixed(4)}</td>`;
-            html += `<td>${row.share_KR.toFixed(4)}</td>`;
-            html += `<td>${row.mu_h_c.toFixed(4)}</td>`;
-            html += `<td>${row.mu_h_p.toFixed(4)}</td>`;
-            html += `<td>${row.wc.toExponential(2)}</td>`;
-            html += `<td>${row.qc.toExponential(2)}</td>`;
-            html += `<td>${row.wp.toExponential(2)}</td>`;
-            html += `<td>${row.qr.toExponential(2)}</td>`;
-            if (useLand) {
-                html += `<td>${(row.E_t || 0).toExponential(2)}</td>`;
-                html += `<td>${(row.R_total || 0).toExponential(2)}</td>`;
-                html += `<td>${((row.land_exp_share || 0) * 100).toFixed(2)}%</td>`;
-                for (var ci = 0; ci < LAND_ENDOGENOUS_CATEGORIES.length; ci++) {
-                    var v = row.rent_per_ha ? row.rent_per_ha[LAND_ENDOGENOUS_CATEGORIES[ci]] : 0;
-                    html += `<td>${v.toExponential(2)}</td>`;
-                }
-            }
-            html += '</tr>';
-        }
-
-        html += '</tbody></table>';
-        container.innerHTML = html;
-        document.getElementById('resultsTable').classList.remove('hidden');
-    }
-
     // ========================================
     // Main App Logic
     // ========================================
@@ -3478,8 +3406,6 @@
                 createCharts(results, useLand, doDistributionLabor, useTaxation, gwpBreakdown);
                 createDistributionCharts(null, null, null);
             }
-
-            createResultsTable(results, useLand);
 
             // Clear any previous status message on successful run
             hideStatus();
