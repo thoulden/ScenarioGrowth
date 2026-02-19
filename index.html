@@ -3701,7 +3701,7 @@
         // LFP defaults
         document.getElementById('lfp_target').value = rp.lfp_target;
         document.getElementById('frisch_elasticity').value = rp.frisch_elasticity;
-        document.getElementById('logistic_s').value = rp.logistic_s;
+        // Note: logistic_s is computed from frisch_elasticity in getParams()
 
         // Land expenditure share
         document.getElementById('land_exp_share').value = rp.land_exp_share;
@@ -3943,6 +3943,14 @@
             var container = document.getElementById('widget' + group.charAt(0).toUpperCase() + group.slice(1));
             if (!container) return;
             var html = '';
+            // For quantities group, include the stats div at the top
+            if (group === 'quantities') {
+                html += '<div class="widget-stats" id="widgetStats">';
+                html += '<span class="widget-stat" id="statAICopies" title="AI Copies doubling time"></span>';
+                html += '<span class="widget-stat" id="statRobots" title="Robots doubling time"></span>';
+                html += '<span class="widget-stat" id="statH100e" title="AI Runtime (H100e per AI) halving time"></span>';
+                html += '</div>';
+            }
             WIDGET_VARS[group].forEach(function(v) {
                 html += renderWidgetVariable(v, group);
             });
