@@ -1,4 +1,4 @@
-// Chart 12: Output
+// Chart 12: Real Output
 function createOutputChart(results, years) {
     var T = CHART_THEME.colors;
     var GATE_OUTPUT = [
@@ -14,7 +14,7 @@ function createOutputChart(results, years) {
     }
     var ctx = document.getElementById('outputChart').getContext('2d');
     return new Chart(ctx, makeChartConfig(datasets, years,
-        { yType: 'logarithmic', yTitle: 'Output (log scale)', yFormat: '$exp' },
-        { title: 'Output' }
+        { yType: 'logarithmic', yTitle: 'Real Output (log scale)', yFormat: '$exp' },
+        { title: 'Real Output' }
     ));
 }
