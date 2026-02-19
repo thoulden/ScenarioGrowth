@@ -7,7 +7,7 @@ function createNetWorthChart(distribution, snapIndices, smoothDists) {
     var ctx = document.getElementById('netWorthChart').getContext('2d');
     return new Chart(ctx, makeChartConfig(datasets, null,
         { xType: 'linear', xTitle: 'Percentile', xMin: 5, xMax: 100,
-          yType: 'logarithmic', yTitle: 'Net Worth ($, log scale)', yFormat: '$' },
+          yType: 'logarithmic', yTitle: "Net Worth ('25$, log scale)", yFormat: '$' },
         { title: 'Net Worth Distribution (per Working-Age Person)' }
     ));
 }

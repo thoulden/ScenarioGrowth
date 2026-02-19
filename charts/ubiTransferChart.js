@@ -15,7 +15,7 @@ function createUbiTransferChart(results, years, params) {
     datasets.push(ds('Wage Income', wage_per_worker, T.green));
     var ctx = document.getElementById('ubiTransferChart').getContext('2d');
     return new Chart(ctx, makeChartConfig(datasets, years,
-        { yType: 'logarithmic', yTitle: '$ per Person', yMin: 1, yFormat: '$' },
+        { yType: 'logarithmic', yTitle: "'25$ per Person", yMin: 1, yFormat: '$' },
         { title: 'UBI Transfers per Person' }
     ));
 }

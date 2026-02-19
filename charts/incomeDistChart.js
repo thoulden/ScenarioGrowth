@@ -7,7 +7,7 @@ function createIncomeDistChart(distribution, snapIndices, smoothDists) {
     var ctx = document.getElementById('incomeDistChart').getContext('2d');
     return new Chart(ctx, makeChartConfig(datasets, null,
         { xType: 'linear', xTitle: 'Percentile', xMin: 5, xMax: 100,
-          yType: 'logarithmic', yTitle: 'Annual Income ($, log scale)', yFormat: '$' },
+          yType: 'logarithmic', yTitle: "Annual Income ('25$, log scale)", yFormat: '$' },
         { title: 'Income Distribution (per Working-Age Person)' }
     ));
 }

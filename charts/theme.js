@@ -57,7 +57,7 @@ Chart.register({
     }
 });
 
-// Format a number in scientific notation: $3.05e13
+// Format a number in scientific notation: '25$ 3.05e13
 function formatExpValue(value, prefix, suffix) {
     if (value == null || isNaN(value)) return '';
     var abs = Math.abs(value);
@@ -73,7 +73,7 @@ function formatExpValue(value, prefix, suffix) {
 }
 
 // Format a number with K/M/B/T suffixes
-// prefix: '$' or '', suffix: '%' or ''
+// prefix: "'25$ " or '', suffix: '%' or ''
 function formatTickValue(value, prefix, suffix) {
     if (value == null || isNaN(value)) return '';
     var abs = Math.abs(value);
@@ -100,7 +100,7 @@ function formatTickValue(value, prefix, suffix) {
 }
 
 // Helper: build scales config
-// yFormat: '$' for dollar amounts, '%' for percentages, 'count' for large plain numbers
+// yFormat: '$' for dollar amounts (rendered as '25$ ), '%' for percentages, 'count' for large plain numbers
 function makeScales(opts) {
     var T = CHART_THEME;
     var xCfg = {
@@ -126,9 +126,9 @@ function makeScales(opts) {
 
     // Apply tick formatting based on yFormat
     if (opts.yFormat === '$') {
-        yCfg.ticks.callback = function(value) { return formatTickValue(value, '$', ''); };
+        yCfg.ticks.callback = function(value) { return formatTickValue(value, "'25$ ", ''); };
     } else if (opts.yFormat === '$exp') {
-        yCfg.ticks.callback = function(value) { return formatExpValue(value, '$', ''); };
+        yCfg.ticks.callback = function(value) { return formatExpValue(value, "'25$ ", ''); };
     } else if (opts.yFormat === '%') {
         yCfg.ticks.callback = function(value) { return formatTickValue(value, '', '%'); };
     } else if (opts.yFormat === 'count') {
@@ -171,8 +171,8 @@ function makeChartConfig(datasets, labels, scaleOpts, extraOpts) {
         var _fmt = scaleOpts.yFormat;
         cfg.options.plugins.tooltip = { callbacks: { label: function(ctx) {
             var v = ctx.parsed.y;
-            if (_fmt === '$') return ctx.dataset.label + ': ' + formatTickValue(v, '$', '');
-            if (_fmt === '$exp') return ctx.dataset.label + ': ' + formatExpValue(v, '$', '');
+            if (_fmt === '$') return ctx.dataset.label + ': ' + formatTickValue(v, "'25$ ", '');
+            if (_fmt === '$exp') return ctx.dataset.label + ': ' + formatExpValue(v, "'25$ ", '');
             if (_fmt === '%') return ctx.dataset.label + ': ' + formatTickValue(v, '', '%');
             return ctx.dataset.label + ': ' + formatTickValue(v, '', '');
         }}};

@@ -6,7 +6,7 @@ function createWageIncomeChart(results, years) {
     ];
     var ctx = document.getElementById('wageIncomeChart').getContext('2d');
     return new Chart(ctx, makeChartConfig(datasets, years,
-        { yType: 'logarithmic', yTitle: '$ per Person', yMin: 10000, yFormat: '$' },
+        { yType: 'logarithmic', yTitle: "'25$ per Person", yMin: 10000, yFormat: '$' },
         { title: 'Wage Income', legendDisplay: false }
     ));
 }
