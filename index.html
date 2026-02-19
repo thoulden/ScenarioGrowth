@@ -43,7 +43,6 @@
     <script src="charts/incomeDistChart.js"></script>
     <script src="charts/netWorthChart.js"></script>
     <script src="charts/giniChart.js"></script>3
-    <script src="charts/povertyChart.js"></script>
     <script src="charts/sectorPriceChart.js"></script>
     <script src="model/sectorPrices.js"></script>
     <script src="charts/createCharts.js"></script>
@@ -810,14 +809,6 @@
                     </div>
                     <h3>Gini Coefficients Over Time</h3>
                     <canvas id="giniChart"></canvas>
-                </div>
-                <!-- Poverty Headcount Rates (conditional on distribution) -->
-                <div class="chart-container" id="povertyContainer" style="display: none;">
-                    <div class="chart-toolbar">
-                        <button class="chart-download-btn" title="Download PNG" data-chart="povertyChart">&#x2B07;</button>
-                    </div>
-                    <h3>Poverty Headcount Rates</h3>
-                    <canvas id="povertyChart"></canvas>
                 </div>
             </div>
 
@@ -2314,7 +2305,6 @@
     var incomeCompChart = null;
     var netWorthChart = null;
     var giniChart = null;
-    var povertyChart = null;
     var sectorPriceChart = null;
 
     // Chart functions loaded from charts/*.js

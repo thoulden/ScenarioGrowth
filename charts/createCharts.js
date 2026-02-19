@@ -11,7 +11,7 @@ function createCharts(results, useLand, showLaborChart, showConsumptionChart, gw
      capitalChart, interestChart, techChart, sectorPriceChart,
      landRentChart, landUseShareChart, consumerBudgetChart, landIncomeShareChart,
      realConsumptionChart, wageIncomeChart, ubiTransferChart,
-     incomeDistChart, incomeCompChart, netWorthChart, giniChart, povertyChart
+     incomeDistChart, incomeCompChart, netWorthChart, giniChart
     ].forEach(function(c) { if (c) c.destroy(); });
 
     // 1. Output

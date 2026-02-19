@@ -4,14 +4,12 @@ function createDistributionCharts(distribution, results, params) {
     var incomeCompContainer = document.getElementById('incomeCompContainer');
     var netWorthContainer = document.getElementById('netWorthContainer');
     var giniContainer = document.getElementById('giniContainer');
-    var povertyContainer = document.getElementById('povertyContainer');
 
     if (!distribution || distribution.length === 0) {
         incomeDistContainer.style.display = 'none';
         incomeCompContainer.style.display = 'none';
         netWorthContainer.style.display = 'none';
         giniContainer.style.display = 'none';
-        povertyContainer.style.display = 'none';
         _cachedDistribution = null;
         return;
     }
@@ -20,7 +18,6 @@ function createDistributionCharts(distribution, results, params) {
     incomeCompContainer.style.display = '';
     netWorthContainer.style.display = '';
     giniContainer.style.display = '';
-    povertyContainer.style.display = '';
 
     var percentiles = distribution[0].households.map(function(h) { return h.percentile; });
     _cachedDistribution = distribution;
@@ -63,5 +60,4 @@ function createDistributionCharts(distribution, results, params) {
 
     netWorthChart = createNetWorthChart(distribution, snapIndices, smoothDists);
     giniChart = createGiniChart(distribution);
-    povertyChart = createPovertyChart(distribution);
 }
